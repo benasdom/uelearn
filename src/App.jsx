@@ -14,10 +14,10 @@ import Showfiles from './Showfiles'
 import racoon from '/imgs/racoon.jpg'
 import PWAInstallButton from './PWAInstallButton'
 import LoadComponent from './Loadcomponent'
-import { SmileFilled, TeamOutlined ,MessageOutlined, MoneyCollectOutlined, SmileOutlined} from '@ant-design/icons'
+import { SmileFilled, TeamOutlined ,MessageOutlined, MoneyCollectOutlined, SmileOutlined, LogoutOutlined} from '@ant-design/icons'
 import Register from './menu/Register'
 import { getFromLocalStorage } from './menu/fromlocal'
-import { fetchWithAuth, domain } from './menu/authfetch'
+import { fetchWithAuth, domain,leave } from './menu/authfetch'
 
 
 
@@ -406,6 +406,7 @@ to maximize the cognitive benefits of study time. By incorporating these
 <Link to="/uelearn/about"><div className='navb'> <i>{<SmileOutlined/>}</i><div  className='nt'>about</div></div></Link>
   <Link to="/uelearn/contact"> <div className='navb'> <i>{<TeamOutlined/>}</i><div  className='nt'>contact</div></div></Link>
   <Link to="/uelearn/payment"   target="_blank" rel="noopener noreferrer"> <div className='navb'> <i>{<MoneyCollectOutlined/>}</i><div  className='nt'>upgrade</div></div></Link>
+ <div onClick={leave} className='navb'> <i>{<LogoutOutlined/>}</i><div  className='nt'>Logout</div></div>
 </div>
 
 

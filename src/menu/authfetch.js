@@ -43,6 +43,14 @@ export async function fetchWithAuth(urlPath, option) {
     console.log("Error fetching data:",error);
   }
 }
+export async function leave(){
+    if(confirm("Do you wish to logout"))
+    {
+        localStorage.removeItem("userInfo");
+        location.reload();
+
+    }
+    }
 export async function refreshTokens(refreshUrl = domain+"/api/v1/auth/refresh") {
 
   try {

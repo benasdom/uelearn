@@ -95,7 +95,7 @@ startcounter();
         .finally(()=>{setbools(false)})
     }
     catch(err){
-        seterrors(err)}
+        seterrors(`There was an issue: ${err}`)}
 }
 
 const startcounter=()=>{
@@ -143,6 +143,12 @@ const activateuser=()=>{
 
 }
 const otpRequestCheck=(vals)=>{
+    if(vals=="" || !vals){
+        
+        seterrors("Please enter correct OTP code");
+        setbools(false);
+        return false;
+    }
     const options = {
         method: 'POST',
         headers: {

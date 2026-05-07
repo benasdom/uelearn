@@ -14,7 +14,7 @@ import racoon from '/imgs/racoon_job.jpg'
 import Overview from './menu/Overview'
 import LoadComponent from './Loadcomponent'
 import ModelComponent from './ModelComponent'
-import { domain, fetchWithAuth, LocalApiPath,userState } from './menu/authfetch'
+import { domain, fetchWithAuth, leave, LocalApiPath,userState } from './menu/authfetch'
 
 const SearchList=({
     setsearching,selectedVal,setselectedVal,
@@ -129,14 +129,6 @@ const cleanedResponse = processAIResponse(solved);
         setspin(false);
     }
 }
-const leave=()=>{
-    if(confirm("Do you wish to logout"))
-    {
-        localStorage.removeItem("userInfo");
-        location.reload();
-
-    }
-    }
     const openpdf=(url)=>{
     setshowpdf(true)
     }
