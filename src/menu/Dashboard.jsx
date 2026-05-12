@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { domain, fetchWithAuth } from './authfetch'
 import coins from '/imgs/coin.png'
 import { getFromLocalStorage, setToLocalStorage } from './fromlocal'
+import VerifyOTP from './reverfifyotp'
 
 const Dashboard = () => {
   const [userscore, setuserscore] = useState(null)
@@ -9,6 +10,7 @@ const Dashboard = () => {
   const [earning, setearning] = useState(null)
   const [storedval, setstoredval] = useState(null)
   const [showprofile, setshowprofile] = useState(false)
+  const [showVerify, setShowVerify] = useState(false)
   const [streaks, setstreaks] = useState({ steakScore: "", date: "" })
 
   let url = domain + '/api/v1/user/streak'
@@ -144,9 +146,10 @@ const Dashboard = () => {
   }, [userscore, streaks.date])
 
   return (
+    
     showprofile
       ? <div className="userlevel flex-col">
-          <div className="rbackdrop2" style={{ opacity: .2 }}></div>
+       <div className="rbackdrop2" style={{ opacity: .2 }}></div>
           <div className="profilehead">
             <span className="profilebtn" onClick={() => setshowprofile(false)}>
               <div className="fnav"><i className="fa fa-user"></i></div>
@@ -185,6 +188,17 @@ const Dashboard = () => {
         </div>
 
       : <div className="userlevel flex-col">
+        {showVerify && (
+  <VerifyOTP
+    onSuccess={() => {
+      setShowVerify(false);
+      const updated = { ...getFromLocalStorage("userInfo", {}), isVerified: true };
+      setToLocalStorage("userInfo", updated);
+      setstoredval(updated);
+    }}
+    onClose={() => setShowVerify(false)}
+  />
+)}   
           <div className="profilehead">
             <span className="profilebtn" onClick={() => setshowprofile(true)}>
               <div className="fnav"><i className="fa fa-user"></i></div>
@@ -212,6 +226,9 @@ const Dashboard = () => {
                         {storedval?.isVerified
                           ? <div className="otpsuccess">OTP Verified</div>
                           : <div className="otpfailed">Not Verified</div>}
+                            {!storedval?.isVerified?
+                            <div className="verify" onClick={()=>setShowVerify(true)} >verify</div>
+                            :""}
                       </div>
                     </div>
                   </div>

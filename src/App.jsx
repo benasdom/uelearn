@@ -18,6 +18,7 @@ import { SmileFilled, TeamOutlined ,MessageOutlined, MoneyCollectOutlined, Smile
 import Register from './menu/Register'
 import { getFromLocalStorage } from './menu/fromlocal'
 import { fetchWithAuth, domain,leave } from './menu/authfetch'
+import LearningTechniques from './Learningtechniques'
 
 
 
@@ -25,7 +26,7 @@ function App() {
  const [loader, setloader] = useState(true)
  const [searching, setsearching] = useState(false)
  const [find, setfind] = useState("")
- const [NetworkError, setNetworkError] = useState("Type the course c⚾de in the search bar above ...🔎. ☝🏼")
+ const [NetworkError, setNetworkError] = useState("Type the course c⚾de in the search bar above ... ☝🏼")
  const [Refreshing, setRefreshing] = useState(false)
  const [payload, setpayload] = useState([{createdOn:"",description:"",downloadLink:""}])
      const [dated, setdated] = useState("")
@@ -253,7 +254,7 @@ useEffect(() => {
     </div>
     <div className="slideitembody">
       <div className="slideb1">
-        <p>Using Grade "A" oriented approach</p>
+        <p>Click the 🔍☝️search box and type your course code</p>
       </div>
       <div className="slideb2"><img width="110" src={inspo2} alt="Past Questions"/></div>
     </div>
@@ -279,7 +280,7 @@ useEffect(() => {
     </div>
     <div className="slideitembody">
       <div className="slideb1">
-        <p>Optimised save questions feature and more</p>
+        <p>Practice with our browser extension</p>
       </div>
       <div className="slideb2"><img width="110" src={inspo1} alt="Past Questions"/></div>
     </div>
@@ -287,73 +288,8 @@ useEffect(() => {
     </div>
   </div>
 </div>
-<div className="midmessage">
-  <div className="midleft">
-<div className="welcome"><i className="bga">🤗</i><span className="welcome" style={{textTransform:"uppercase"}}>{`HI !`}</span>
-{/* <span className="prem4 difficon">
-  👋🏾
-</span> */}
-</div>
-  <div className="rbackdropa" ></div>
-  <div className="rbackdropb" ></div>
-  <div className="rbackdropc" ></div>
 
-<div className="welcmessage" id="welcid">
-Practice makes perfect. Keep your self busy with the resources we provide.
-</div>
-
-{/* <>Download Now !</> */}
-<PWAInstallButton />
-  </div>
-  
-  <div className="midleft">
-  <img className="messagepic" src={racoon} alt=""/>
-  </div>
-
-      </div>
-      <div className="pgcontent">
-        <h2 className="welcome" id="whats"><div className="iconb">⚙️</div>What we help you solve?</h2>
-        <h2 className="welcome" id="ol">1. </h2>
-
-        <p className="pgmessage"> Modern psychological research suggests that the best way to learn and retain
-           information is through active learning techniques that require the brain to work to remember information. 
-          These techniques include:</p>
-
-<p className='pgmessage'>Repeated retrieval practice: This involves remembering information more than once, 
-  which enhances accessibility in the future. 
-</p>
-        <h2 className="welcome" id="ol">2. </h2>
-
-<p className="pgmessage">
-Testing: Attempting questions or explaining concepts to others helps reinforce learning and identify gaps. 
-</p>
-        <h2 className="welcome" id="ol">3. </h2>
-
-<p className="pgmessage">
-Spaced repetition: Reviewing material over time helps reinforce it,
- making it easier for the brain to access stored information. 
-</p>
-        <h2 className="welcome" id="ol">4. </h2>
-
-<p className="pgmessage">
-Dual coding: Engaging both verbal and visual information through different channels 
-increases the chances of recalling the information later. 
-</p>
-        <h2 className="welcome" id="ol">5. </h2>
-
-<p className="pgmessage">
-Personal connections: Learning through material that feels relevant to personal
- experiences enhances the probability of recall. 
-</p>
-        <h2 className="welcome" id="ol">6. </h2>
-
-<p className="pgmessage">
-These strategies are grounded in decades of research and are designed 
-to maximize the cognitive benefits of study time. By incorporating these
- techniques into your study routine, you can improve your ability to learn 
- and retain information effectively.
-</p>
-</div>
+<LearningTechniques/>
 <div className="tel">
   <div className="telegram">
     <span className="itext">Join</span>our telegram community 

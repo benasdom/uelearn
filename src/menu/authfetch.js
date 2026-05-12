@@ -30,7 +30,11 @@ export async function fetchWithAuth(urlPath, option) {
     
     if (!response.ok) {
       console.log(response);
-      throw new Error(`Fetch failed with status ${response.statusText}`);
+      let failed=await response.json();
+      if(failed){
+        return failed
+      }
+      throw new Error(`Fetch failed with status ${response.status ??response.statusText}`);
 
     }
     
@@ -38,19 +42,16 @@ export async function fetchWithAuth(urlPath, option) {
     console.log(data)
 
 
-    return data.data; // Return data for further use
+    return data.data ?? data; // Return data for further use
   } catch (error) {
     console.log("Error fetching data:",error);
   }
 }
 export async function leave(){
-    if(confirm("Do you wish to logout"))
-    {
         localStorage.removeItem("userInfo");
         location.reload();
 
-    }
-    }
+}
 export async function refreshTokens(refreshUrl = domain+"/api/v1/auth/refresh") {
 
   try {
@@ -68,13 +69,22 @@ export async function refreshTokens(refreshUrl = domain+"/api/v1/auth/refresh") 
     });
 
     if (!response.ok) {
-      console.log(response.type,"Error 400")
+      if(response.status==400)
+      {
+        leave();
+        location.reload();
+      }
+      else{
+         console.log(response.type,` ${response.status}`)
 
       throw new Error("Failed to refresh token due to "+response.type);
+      }
+     
+      
+   
     }
 
     const data = await response.json();
-
     const newAccessToken = data.data.token;
 
     // Retrieve the stored userInfo and update the accessToken

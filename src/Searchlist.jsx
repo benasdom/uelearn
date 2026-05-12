@@ -81,7 +81,11 @@ const getpayload=async (res)=>{
                     })
         };
         const solutionResponse = await fetchWithAuth(`${domain}/api/v1/request/solutions`, options);
+        if(solutionResponse?.error){
+            throw new Error(`${solutionResponse.error.details??solutionResponse.error.message??solutionResponse??"Failed to fetch solution"}`);
+        }
         if (!solutionResponse) {
+            console.log("check for error details here",solutionResponse)
             throw new Error("No response from solutions API");
         }
         // Handle response from fetchWithAuth
@@ -224,10 +228,17 @@ target="_blank"
                         <div className="titles">{(a.description).replace(/o/gi,["🧿","⭕"][b%2])}</div><div className="describe">{a.createdOn}</div>
                         </div><div href={(/payment/i.test(a.downloadLink))?"":a.downloadLink} onClick={(ev) => fix(a.downloadLink,a.description)} className="download">{<ExportOutlined style={{marginRight:"5px"}}/>} open<span className='prema'></span></div></div> })
                     :new Array(1).fill("").map((a,b)=>{
-                    return a=<div key={b+""} style={{margin:0, width:"100%"}} className="filtered mn4" data-ptext="title..." data-texts="details..."><div className="desc err4">
+                    return a=<div key={b+""} style={{margin:0, width:"100%"}} className="filtered mn4" data-ptext="title..." data-texts="details...">
+                        
+                    <div className="ready">
+                        <div className="big">🔎</div>
+                            <div className="desc err4">
 <div className="fnav2" style={{padding:2}}>                        <img className="reglate" src={mainlogo} alt=""/>
 </div>
-                        <span className='nerror'>{NetworkError}</span></div></div>
+                        <span className='nerror'>{NetworkError}</span>
+                        </div>
+                    </div>
+                        </div>
                     })}
             </div>
             </div>
@@ -241,7 +252,7 @@ target="_blank"
     )
 }
 const Toaster=({errorMessage,setfetchError})=>{
-    setTimeout(()=>setfetchError(false),2000)
+    setTimeout(()=>setfetchError(false),3000)
     return (
 <div className="toast">
 <div className="successmessage">{  "🔴 Sorry: 🔌 "+errorMessage.toLowerCase()}</div>

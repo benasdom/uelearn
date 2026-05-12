@@ -26,7 +26,7 @@ const Showfiles=({pdflink,courseName,selectedVal,setshowpdf,mainlogo,actualDlink
     const [iframeLoaded, setIframeLoaded] = useState(false);
     const [storeme, setstoreme] = useState(false);
     const [rawView, setrawView] = useState(true);
-    const [sideTabs, setSideTabs] = useState(false);
+    const [sideTabs, setSideTabs] = useState(true);
     const [savedquery, setsavedquery] = useState(null); // ADDED THIS LINE
     const [founditems, setfounditems] = useState([]);
 

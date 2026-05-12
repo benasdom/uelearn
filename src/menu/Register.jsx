@@ -22,6 +22,7 @@ export default function Register({setshows}) {
     const [olduseremail, setolduseremail] = useState("");
     const [oldpwd, setoldpwd] = useState("");
     const [message, setmessage] = useState("");
+    const [skipotp, setskipotp] = useState(false);
     const [showopage, setshowopage] = useState(false);
     const [hasref, sethasref] = useState(false);
     const [counter, setcounter] = useState(10);
@@ -90,7 +91,7 @@ startcounter();
 
     try{
         fetch(domain+"/api/v1/send/sms/otp",options)
-        .then((res)=>{res.status==200?seterrors("Sent successfully"):seterrors("Failed to send OTP, try again")})
+        .then((res)=>{res.status==200?seterrors("Sent successfully"):seterrors("Failed to send OTP, try again");setskipotp(true);})
         .catch(()=>{ seterrors("There was a promblem please retry");setindics(false);})
         .finally(()=>{setbools(false)})
     }
@@ -147,6 +148,7 @@ const otpRequestCheck=(vals)=>{
         
         seterrors("Please enter correct OTP code");
         setbools(false);
+
         return false;
     }
     const options = {
@@ -159,8 +161,8 @@ const otpRequestCheck=(vals)=>{
     try{
         let errmess="Verification failed, you can go login and try again later"
         fetch(domain+"/api/v1/verification",options)
-        .then((res)=>{ console.log(res);res.status==200?activateuser():servererrors(res)})
-        .catch((err)=>{err?seterrors("There was a problem please retry"):false;})
+        .then((res)=>{ console.log(res);res.status==200?activateuser():servererrors(res);setskipotp(true);})
+        .catch((err)=>{err?seterrors("There was a problem please retry"):false; setskipotp(true);})
         .finally(()=>{setbools(false)})
     }
     catch(err){
@@ -209,6 +211,7 @@ const populate=(result)=>{
 }
 
     const ValidateSignup = (pp) => {
+        setskipotp(false);
         
         if(!showopage){
 
@@ -463,9 +466,17 @@ activateuser()
                                 {indics && bools?"...":"Proceed"}
 
                             </div>
+                            {skipotp?
+                                  <>  <div className="noted">
+                                <InfoCircleFilled className="micon"/> Didn't receive OTP? You can skip and verify later
+                            </div>
+                            
+                            <div className="skipbtn" onClick={activateuser} ><i className="arrow-right"></i> {`Skip >`}</div>
+                            </>
+                            :""}
                          
                             </div>
-                        
+                    
                         ):false}
                         </div>
                     </div>
