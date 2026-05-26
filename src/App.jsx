@@ -19,6 +19,7 @@ import Register from './menu/Register'
 import { getFromLocalStorage } from './menu/fromlocal'
 import { fetchWithAuth, domain,leave } from './menu/authfetch'
 import LearningTechniques from './Learningtechniques'
+import TelegramSection from './Telegramsection'
 
 
 
@@ -205,7 +206,7 @@ useEffect(() => {
 
   return (
     <>
-    {!searching?<div>
+    {!searching?<>
     <div className="page">
 <div className="promo" style={{position:"relative",fontWeight:600}}>
   <span className="inv-ico"></span> Promotion ends in: <p className="ticket">{`${ticket} ${counter}`}</p></div>
@@ -290,10 +291,9 @@ useEffect(() => {
 </div>
 
 <LearningTechniques/>
+<br></br>
 <div className="tel">
-  <div className="telegram">
-    <span className="itext">Join</span>our telegram community 
-  </div>
+  <TelegramSection/>
 
 </div>
 
@@ -308,8 +308,6 @@ useEffect(() => {
 
         </div> 
     </div> 
-
-       </div>
        <div className="footer">
         <div className="foot1">
             <img className="brands" title='uelearn' src={mainlogo} alt="" />
@@ -347,7 +345,9 @@ useEffect(() => {
 
 
  </div>
- </div>
+       </div>
+
+ </>
  :
  <SearchList 
    setdataerror={setdataerror}
