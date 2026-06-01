@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState,useRef } from 'react'
+import useRecordVisit from './hooks/useRecordVisit'
 import './index.css'
 import mainlogo from '/imgs/titled.png'
 import spinner from '/imgs/loader.svg'
@@ -24,6 +25,7 @@ import TelegramSection from './Telegramsection'
 
 
 function App() {
+  useRecordVisit();
  const [loader, setloader] = useState(true)
  const [searching, setsearching] = useState(false)
  const [find, setfind] = useState("")
@@ -327,22 +329,17 @@ useEffect(() => {
                     <div className="slash" onClick={sender}>
                         <svg className="sendarrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"  strokeWidth="2"><path d="M.5 1.163A1 1 0 0 1 1.97.28l12.868 6.837a1 1 0 0 1 0 1.766L1.969 15.72A1 1 0 0 1 .5 14.836V10.33a1 1 0 0 1 .816-.983L8.5 8 1.316 6.653A1 1 0 0 1 .5 5.67V1.163Z" fill="white"></path></svg></div>
      </div>
-
-     
         </div>
         {shows?<Register setshows={setshows}/>:<></>}
     </div>
     <div className="navbottom">
 <div className="nbottomlist">
-
-
 <Link to="/uelearn/"><div className='navb'> <i> <img className="homepic" src={mainlogo} alt=""/></i><div className='nt'>home</div></div></Link>
 <Link to="/uelearn/about"><div className='navb'> <i>{<SmileOutlined/>}</i><div  className='nt'>about</div></div></Link>
   <Link to="/uelearn/contact"> <div className='navb'> <i>{<TeamOutlined/>}</i><div  className='nt'>contact</div></div></Link>
   <Link to="/uelearn/payment"   target="_blank" rel="noopener noreferrer"> <div className='navb'> <i>{<MoneyCollectOutlined/>}</i><div  className='nt'>upgrade</div></div></Link>
  <div onClick={leave} className='navb'> <i>{<LogoutOutlined/>}</i><div  className='nt'>Logout</div></div>
 </div>
-
 
  </div>
        </div>

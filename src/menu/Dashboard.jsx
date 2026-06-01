@@ -11,145 +11,74 @@ const Dashboard = () => {
   const [storedval, setstoredval] = useState(null)
   const [showprofile, setshowprofile] = useState(false)
   const [showVerify, setShowVerify] = useState(false)
-  const [streaks, setstreaks] = useState({ steakScore: "", date: "" })
 
-  let url = domain + '/api/v1/user/streak'
-  let url2 = domain + '/api/v1/user/wallet'
-
-  // Helper: update localStorage, storedval state, and maxscore in one place
-  const persistUpdate = (newData, freshAccessToken, freshRefreshToken, useractivedate) => {
-    const current = getFromLocalStorage("userInfo", {})
-    const updated = {
-      ...current,
-      ...newData,
-      accessToken: freshAccessToken,
-      refreshToken: freshRefreshToken,
-      useractivedate,
-    }
-    setToLocalStorage("userInfo", updated)
-    setstoredval(updated)
-
-    // Update maxscore if new streakScore exceeds it
-    const newScore = newData?.streakScore ?? updated?.streakScore
-    if (typeof newScore === "number" && newScore > maxscore) {
-      setmaxscore(newScore)
-    }
-  }
+  const streakUrl = domain + '/api/v1/user/streak'
+  const walletUrl = domain + '/api/v1/user/wallet'
 
   useEffect(() => {
     const storeddata = getFromLocalStorage("userInfo", {})
-    const currentScore = storeddata?.streakScore ?? 0
-
-    setuserscore(currentScore)
     setstoredval(storeddata)
+
+    // Show cached values immediately while fetching
+    setuserscore(storeddata?.streakScore ?? 0)
     setmaxscore(storeddata?.highestStreakScore ?? 0)
-    setstreaks({
-      steakScore: currentScore,
-      date: new Date().toISOString()
-    })
 
     const accessToken = storeddata?.accessToken
     const refreshToken = storeddata?.refreshToken
 
-    if (accessToken?.length > 0 && refreshToken?.length > 0) {
-      fetchWithAuth(url2, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      })
-        .then((data) => {
-          setearning(data?.balance ?? null)
-        })
-        .catch((err) => {
-          console.error("Error fetching wallet:", err)
-          setearning(null)
-        })
-    }
-  }, [])
+    if (!accessToken || !refreshToken) return
 
-  const transformdata = () => {
-    const freshStoredData = getFromLocalStorage("userInfo", {})
-    const freshAccessToken = freshStoredData?.accessToken
-    const freshRefreshToken = freshStoredData?.refreshToken
+    // POST to record today's visit.
+    // Backend is idempotent — safe to call on every app load.
+    // No body needed; backend derives everything from the user's lastActiveDate.
+    fetchWithAuth(
+      streakUrl,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+      refreshToken
+    )
+      .then((data) => {
+        const score = data?.streakScore ?? 0
+        const highest = data?.highestStreakScore ?? 0
 
-    let newdate = new Date(streaks.date.split(/T/gim)[0])
+        setuserscore(score)
+        setmaxscore(highest)
 
-    if (freshStoredData?.useractivedate != null) {
-      let useractivedate = freshStoredData.useractivedate
-
-      const lastEntry = useractivedate[1] ?? useractivedate[0]
-      if (!lastEntry) return
-
-      let predate = new Date(lastEntry.split(/T/gim)[0])
-      let diffInDays = Math.floor((newdate - predate) / (1000 * 60 * 60 * 24))
-
-      updateStreakToOne(diffInDays, useractivedate, newdate, freshAccessToken, freshRefreshToken)
-    } else {
-      let prevolddated = [streaks.date]
-      updateStreakToOne(0, prevolddated, newdate, freshAccessToken, freshRefreshToken)
-    }
-  }
-
-  const updateStreakToOne = (val, useractivedates, freshdate, freshAccessToken, freshRefreshToken) => {
-    if (val === 1) {
-      console.log("incrementing")
-      if (freshAccessToken && freshRefreshToken && typeof userscore === "number") {
-        const newScore = userscore === 0 ? 1 : userscore + 1
-        fetchWithAuth(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${freshAccessToken}` },
-          body: JSON.stringify({ streakScore: newScore })
-        }, freshRefreshToken)
-          .then((data) => {
-            const score = data?.streakScore ?? newScore
-            setuserscore(score)
-            persistUpdate(data, freshAccessToken, freshRefreshToken, [...useractivedates, freshdate].slice(-2))
-          })
-          .catch(err => console.error("Streak increment failed:", err))
-      }
-    } else if (val > 1) {
-      console.log("resetting")
-      if (freshAccessToken && freshRefreshToken && typeof userscore === "number") {
-        fetchWithAuth(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${freshAccessToken}` },
-          body: JSON.stringify({ streakScore: 1 })
-        }, freshRefreshToken)
-          .then((data) => {
-            setuserscore(1)
-            persistUpdate(data, freshAccessToken, freshRefreshToken, [...useractivedates, freshdate].slice(-2))
-          })
-          .catch(err => console.error("Streak reset failed:", err))
-      }
-    } else if (val === 0) {
-      console.log("maintaining")
-      if (userscore === 0) {
-        if (freshAccessToken && freshRefreshToken && typeof userscore === "number") {
-          fetchWithAuth(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${freshAccessToken}` },
-            body: JSON.stringify({ streakScore: 1 })
-          }, freshRefreshToken)
-            .then((data) => {
-              setuserscore(1)
-              persistUpdate(data, freshAccessToken, freshRefreshToken, [...useractivedates, freshdate].slice(-2))
-            })
-            .catch(err => console.error("Streak maintain failed:", err))
+        // Sync localStorage with authoritative server values
+        const updated = {
+          ...storeddata,
+          streakScore: score,
+          highestStreakScore: highest,
+          lastActiveDate: data?.lastActiveDate ?? storeddata.lastActiveDate,
         }
-      }
-    }
-  }
+        setToLocalStorage("userInfo", updated)
+        setstoredval(updated)
+      })
+      .catch((err) => {
+        // Network failure — cached values already shown above, just log the error
+        console.error("Streak update failed:", err)
+      })
 
-  useEffect(() => {
-    if (userscore != null && streaks.date) {
-      const t = setTimeout(transformdata, 5000)
-      return () => clearTimeout(t)
-    }
-  }, [userscore, streaks.date])
+    // Fetch wallet balance independently
+    fetchWithAuth(walletUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((data) => setearning(data?.balance ?? null))
+      .catch((err) => {
+        console.error("Error fetching wallet:", err)
+        setearning(null)
+      })
+  }, []) // Runs once on mount
 
   return (
-    
     showprofile
       ? <div className="userlevel flex-col">
-       <div className="rbackdrop2" style={{ opacity: .2 }}></div>
+          <div className="rbackdrop2" style={{ opacity: .2 }}></div>
           <div className="profilehead">
             <span className="profilebtn" onClick={() => setshowprofile(false)}>
               <div className="fnav"><i className="fa fa-user"></i></div>
@@ -174,8 +103,8 @@ const Dashboard = () => {
                 <div className="hint">Highest streak</div>
               </div>
               <div className="streaks">
-                <div className="hint streaknumbs">{userscore != null ? userscore : 1}</div>
-                <div className="hint streaknumbs">{maxscore ? maxscore : 1}</div>
+                <div className="hint streaknumbs">{userscore != null ? userscore : 0}</div>
+                <div className="hint streaknumbs">{maxscore != null ? maxscore : 0}</div>
               </div>
               <div className="streak">{"⭐".repeat(10)}</div>
             </div>
@@ -188,17 +117,20 @@ const Dashboard = () => {
         </div>
 
       : <div className="userlevel flex-col">
-        {showVerify && (
-  <VerifyOTP
-    onSuccess={() => {
-      setShowVerify(false);
-      const updated = { ...getFromLocalStorage("userInfo", {}), isVerified: true };
-      setToLocalStorage("userInfo", updated);
-      setstoredval(updated);
-    }}
-    onClose={() => setShowVerify(false)}
-  />
-)}   
+          {showVerify && (
+            <VerifyOTP
+              onSuccess={() => {
+                setShowVerify(false)
+                const updated = {
+                  ...getFromLocalStorage("userInfo", {}),
+                  isVerified: true,
+                }
+                setToLocalStorage("userInfo", updated)
+                setstoredval(updated)
+              }}
+              onClose={() => setShowVerify(false)}
+            />
+          )}
           <div className="profilehead">
             <span className="profilebtn" onClick={() => setshowprofile(true)}>
               <div className="fnav"><i className="fa fa-user"></i></div>
@@ -226,9 +158,9 @@ const Dashboard = () => {
                         {storedval?.isVerified
                           ? <div className="otpsuccess">OTP Verified</div>
                           : <div className="otpfailed">Not Verified</div>}
-                            {!storedval?.isVerified?
-                            <div className="verify" onClick={()=>setShowVerify(true)} >verify</div>
-                            :""}
+                        {!storedval?.isVerified
+                          ? <div className="verify" onClick={() => setShowVerify(true)}>verify</div>
+                          : ""}
                       </div>
                     </div>
                   </div>

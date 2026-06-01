@@ -1,399 +1,1193 @@
-import { CloseCircleOutlined,MoneyCollectOutlined,ArrowDownOutlined,SolutionOutlined,ArrowLeftOutlined,StarTwoTone,SaveOutlined } from '@ant-design/icons'
-import React, { useEffect, useState } from 'react'
-import spinner from '/imgs/loader.svg'
-import { marked } from "marked";
+import {
+  CloseCircleOutlined,
+  MoneyCollectOutlined,
+  ArrowDownOutlined,
+  SolutionOutlined,
+} from '@ant-design/icons'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { marked } from 'marked'
 import { Link } from 'react-router-dom'
-import {domain, fetchWithAuth,LocalApiPath } from './menu/authfetch';
+import { domain, fetchWithAuth, LocalApiPath } from './menu/authfetch'
 import racoon_learn from '/imgs/racoon_learn.jpg'
 import racoon_save from '/imgs/save.jpg'
-import PdfViewer from './menu/PdfViewer';
+import PdfViewer from './menu/PdfViewer'
 
-const MAX_RECENTS = 5;
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MAX_RECENTS = 5
+const FETCH_TIMEOUT_MS = 8000
+const SEARCH_DEBOUNCE_MS = 400
+
+// ─── localStorage helpers ─────────────────────────────────────────────────────
 
 const saveToRecents = (courseName, extract) => {
-  const stored = JSON.parse(localStorage.getItem('recentSolutions') || '[]');
-  const filtered = stored.filter(x => x.course !== courseName);
-  const updated = [{ course: courseName, solution: extract, savedAt: Date.now() }, ...filtered].slice(0, MAX_RECENTS);
-  const temp=updated.filter(x => !/aierror/gim.test(x.solution) || (x.solution.length > 15)); // Ensure no empty entries
-  const processedupdate = temp.sort((a, b) => b.savedAt - a.savedAt); // Sort by most recent
-  localStorage.setItem('recentSolutions', JSON.stringify(processedupdate));
-};
-
-const getRecents = () => JSON.parse(localStorage.getItem('recentSolutions') || '[]');
-const Showfiles=({pdflink,courseName,selectedVal,setshowpdf,mainlogo,actualDlink,credits,extract,dataerror,raw})=>{
-    const [solns, setsolns] = useState(false);
-    const [recentItems, setRecentItems] = useState(getRecents());
-    const [iframeLoaded, setIframeLoaded] = useState(false);
-    const [storeme, setstoreme] = useState(false);
-    const [rawView, setrawView] = useState(true);
-    const [sideTabs, setSideTabs] = useState(true);
-    const [savedquery, setsavedquery] = useState(null); // ADDED THIS LINE
-    const [founditems, setfounditems] = useState([]);
-
-    
-  
-    //  https://pasco-lovat.vercel.app/api/files/
-    // https://ue-past-questions-back.vercel.app/
-        const storedRaw = localStorage.getItem('userInfo');
-        const stored = JSON.parse(storedRaw);
-        const refreshToken = stored?.refreshToken;
-        if(!stored?.accessToken){
-            alert('Missing access token. Please login again.');
-            return;
-        }
-        const controller = new AbortController();
-        const timeout = setTimeout(()=>{
-            controller.abort();
-        }, 8000);
-    const findSaved=async ()=>{
-        try{
-    const options = {
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${stored.accessToken}`,
-        },
-        signal: controller.signal,
-    };  
-
-
-   let founditems = await fetchWithAuth(domain+`/api/v1/solutions/queries`,options);
-   // Extract nested response data (fetchWithAuth already returns data.data)
-   founditems = founditems?.api_response?.data || founditems;
-   setfounditems(founditems);
-console.log("Hasty",founditems);
-}
-        catch(err){
-            if(err.name === 'AbortError'){
-                alert('Save request timed out. Please try again.');
-            } else {
-                console.error('save error', err);
-                alert('Error saving solution: '+(err.message||err));
-            }
-        }finally{
-            clearTimeout(timeout);
-        }
-    }
-    useEffect(() => {
-      findSaved();
-    }, [])
-
-useEffect(() => {
-  if (extract && extract !== "loading..." && !dataerror.length) {
-    saveToRecents(courseName, extract);
-    setRecentItems(getRecents());
+  try {
+    const stored = JSON.parse(localStorage.getItem('recentSolutions') || '[]')
+    const filtered = stored.filter((x) => x.course !== courseName)
+    const updated = [
+      { course: courseName, solution: extract, savedAt: Date.now() },
+      ...filtered,
+    ]
+      .slice(0, MAX_RECENTS)
+      .filter((x) => !/aierror/gim.test(x.solution) || x.solution.length > 15)
+      .sort((a, b) => b.savedAt - a.savedAt)
+    localStorage.setItem('recentSolutions', JSON.stringify(updated))
+  } catch {
+    // localStorage unavailable — fail silently
   }
-}, [extract]);
-    
-    return (
-        <div className="texttit" id="waiting" >
-        <div className="viewer">
-            <div className="pdfloader">
-                <div className='pdfnav'>
-                    <div className="pdfnavcontainer">
-                    <div className='closesearch' onClick={()=>setshowpdf(false)}>
-                    <div className="bbtn"><div className="ba"><i className='fa fa-close'></i><span className='prem3'></span></div></div> 
-                    </div>
-                    <div className="pnleft">
-                {iframeLoaded || raw ? (
-  <>
-    {/download/gi.test(actualDlink)?<a target='_blank' href={LocalApiPath+actualDlink} download className="bbtn">
-      {<ArrowDownOutlined/>} 
-      <div className="prem3"></div>
-    </a>:<></>}
-    <div className="nbtn" onClick={()=>{setsolns(true)}} style={{marginBottom:5,fontSize:13}}>
-      <div className="fnav"><i className='solstar'>✨</i></div> Solution 
-      <div className="prem3"></div>
+}
+
+const getRecents = () => {
+  try {
+    return JSON.parse(localStorage.getItem('recentSolutions') || '[]')
+  } catch {
+    return []
+  }
+}
+
+// ─── Auth helper ──────────────────────────────────────────────────────────────
+
+const getAuthTokens = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem('userInfo') || '{}')
+    if (!stored?.accessToken) throw new Error('Missing access token. Please login again.')
+    return { accessToken: stored.accessToken, refreshToken: stored.refreshToken }
+  } catch (e) {
+    throw new Error(e.message || 'Auth error. Please login again.')
+  }
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+const Toast = ({ message, type = 'error', onDismiss }) => {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 3000)
+    return () => clearTimeout(t)
+  }, [onDismiss])
+  return (
+    <div className={`sf-toast sf-toast--${type}`}>
+      <span className={type === 'error' ? 'sf-toast__dot sf-toast__dot--error' : 'sf-toast__dot sf-toast__dot--success'} />
+      <span>{message}</span>
     </div>
-  </>
-) : (
-  <>
-    <div className="nbtn refloader"></div>
-    <div className="nbtn refloader"></div>
-  </>
-)}
-    <img className="logopdf" src={mainlogo} width="150" alt=""/></div></div>
-    </div>
-{/* <iframe 
-// src={`https://docs.google.com/viewer?url=${LocalApiPath}${pdflink}&embedded=true`}
-src={`${LocalApiPath}${pdflink}&embedded=true`}
-className="loadpdf" 
-  data-text="Loading...."
-onLoad={() => setTimeout(() => setIframeLoaded(true), 4000)}
-> Loading....
-</iframe> */}
+  )
+}
 
-{<PdfViewer 
-url={`${LocalApiPath}${pdflink}&embedded=true`} 
-setIframeLoaded={setIframeLoaded}
-/>}
-    {solns?
-    <div  className="soln">
-    <div  className="solntop">
-       <div className="rbackdrop" style={{zIndex:1}}></div>
-        <div className="closesearch" onClick={()=>{setsolns(false); setsavedquery(null);}} >
-            <div className="bbtn"><div className="ba"><ArrowLeftOutlined/><span className='prem3'></span></div></div>
-            
+// ─── Save modal ───────────────────────────────────────────────────────────────
+
+const SaveModal = ({ setstoreme, extract, courseName, selectedVal }) => {
+  const [noteMessage, setNoteMessage] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const saveme = async () => {
+    if (noteMessage !== 'Dont save bad responses') {
+      setToast({ message: 'Please type the note correctly to proceed', type: 'error' })
+      return
+    }
+    let accessToken, refreshToken
+    try {
+      ;({ accessToken, refreshToken } = getAuthTokens())
+    } catch (e) {
+      setToast({ message: e.message, type: 'error' })
+      return
+    }
+    setIsSaving(true)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+    try {
+      await fetchWithAuth(
+        domain + '/api/v1/solutions/',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ courseName, solution: extract, validated: false, modelName: selectedVal }),
+          signal: controller.signal,
+        },
+        refreshToken
+      )
+      setToast({ message: 'Saved successfully!', type: 'success' })
+      setTimeout(() => setstoreme(false), 1600)
+    } catch (err) {
+      setToast({
+        message: err.name === 'AbortError' ? 'Request timed out.' : 'Error: ' + (err.message || err),
+        type: 'error',
+      })
+    } finally {
+      clearTimeout(timeout)
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="sf-modal-overlay">
+      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+      <div className="sf-modal">
+        <button className="sf-modal__close" onClick={() => setstoreme(false)}>
+          <CloseCircleOutlined />
+        </button>
+        <div className="sf-modal__art">
+          <img src={racoon_save} alt="save" />
+          <div className="sf-modal__art-fade" />
         </div>
-        {extract !="loading..."?
-        <div className="solmenu">
-            <div className="solnav" style={{color:"golenrod"}} ><span className="goldtop">⚡</span>{credits??"0"}</div>
-                <Link to="/uelearn/Payment"
-                target="_blank"
-                 rel="noopener noreferrer"
-                >
-            
-            <div className="solnav clickable" >
-            <span className="goldtop">
-                <MoneyCollectOutlined/></span> Top up</div>
-            </Link>
-            <div className="imgsmall">
-             <img className="logopdf" src={mainlogo} width="200" alt=""/></div>
-        </div>:<div className="solmenu">
-            <div className="solnav refloader" ></div>
-            <div className="solnav refloader" ></div>
-            <div className="solnav refloader" ></div>
-
-            </div>}
-
+        <div className="sf-modal__body">
+          <h3 className="sf-modal__title">Save Response</h3>
+          <div className="sf-modal__notice">
+            <i className="fa fa-exclamation-triangle sf-modal__notice-icon" />
+            <p>Only save <strong>good responses</strong>. This helps you avoid spending credits on the same topic twice.</p>
+          </div>
+          <div className="sf-modal__field">
+            <label>Type to confirm:</label>
+            <div className="sf-modal__confirm-phrase">Dont save bad responses</div>
+            <input
+              type="text"
+              value={noteMessage}
+              onChange={(e) => setNoteMessage(e.target.value)}
+              placeholder="Type the phrase above…"
+              className={noteMessage && noteMessage !== 'Dont save bad responses' ? 'sf-modal__input--invalid' : ''}
+            />
+          </div>
+          <button
+            className="sf-modal__save-btn"
+            onClick={saveme}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <span className="sf-modal__spinner" />
+            ) : (
+              <>
+                <i className="fa fa-save" /> Save
+              </>
+            )}
+          </button>
         </div>
-
-        {dataerror.length?<div className='aierror2'>Extraction failed 🚨🚨🚨</div>
-        :(extract !="loading..."?<div className='aisuccess'>Extraction successfull <span>✔️✔️✔️</span></div>
-        :false)}
-        {extract=="loading..."?<div  className="responses ">
-            <div className="nbtn refloader" ></div>
-            <div className="nbtn refloader" ></div>
-            <div className="nbtn refloader" ></div>
-            <div className='nbtn soltoggle' onClick={()=>setSideTabs(!sideTabs)} style={{width:40,aspectRatio:"1/1"}}><span className='fnav'><i className='fa fa-hamburger'></i></span></div>
-
-            </div>
-        :
-        <div className="responses"><div className="rbackdrop" style={{zIndex:0,bottom:0,position:"absolute"}}></div>
-              {<div className='ham' title={`previous queries ${!sideTabs?'toggle':'close'}`} onClick={()=>setSideTabs(!sideTabs)} style={{width:40,aspectRatio:"1/1"}}>
-                <div className="prem"></div>
-            <span className='fnav'><i className={!sideTabs?'fa fa-list':'fa fa-close'}></i></span></div>}
-        <div className="nbtn" onClick={()=>{setrawView(false)}}><span><div className="fnav"><i className='fa fa-box'></i></div> Raw</span><span className="prem4"></span></div>
-        
-        <div className="nbtn" onClick={()=>{setrawView(true)}}><span>
-          <div className="fnav"><i className='fa fa-check'></i></div>  Solved</span><span className="prem4"></span></div>
-        {savedquery && 
-        <div className='nbtn today' onClick={()=>{setsavedquery(null);setrawView(true)}} style={{background: 'rgb(115, 191, 2)'}}><span>☀️ RECENT QUERY</span><span className="prem4"></span>
-        </div>
-        }
-        {<div className='nbtn' onClick={()=>setstoreme(true)} ><span><div className="fnav"><i className="fa fa-save"></i></div> Save</span><span className="prem4"></span></div>}
-
-  
-        </div>}
-         <br></br>
-         <div className="midsection">
-            {<div className={extract=="loading" || sideTabs?"tabs":"tabs2"}  >
-               <div className="history-data">
-                            <div className=' soltoggle' onClick={()=>setSideTabs(!sideTabs)} 
-                            style={{position:'absolute',width:50,aspectRatio:"1/1",right:0, marginRight:10}}><div className="fnav"><i style={{fontSize:15}} className='fa fa-close'></i></div></div>
-
-
-            <div className="rlearn" >
-                <img src={racoon_learn} alt="" className="racoon" style={{margin:10}}/>
-            </div>
-            <div className="rbackdrop" style={{zIndex:0,opacity:0.3,bottom:0,position:"absolute"}}></div>
-
-          <div className="history-data-block">
-           <div className="history-data-blocka">
-            <div className="fnav">🔎</div>
-                    <input type="search" name="" placeholder='Find saved query' id="searchsolved" />
-</div>
-             <div className="tabbtn" style={{ width: "100%", marginTop: 10,padding:5, opacity: 0.6 }}>
-<span style={{margin:"auto",fontSize:11}}>
-<SolutionOutlined size={3}/><span style={{paddingLeft:6}}> Saved queries</span>   
-
-</span>
-   </div>
-        <div className="history-data-box">
-         
-  {founditems?.solutions?.length > 0
-    ? founditems.solutions.map((x, y) => (
-        <div
-          className="history-data-item"
-          onClick={() => { setsavedquery(x); setrawView(true); }}
-          key={y + ""}
-          style={{
-            background: savedquery?.id === x.id ? '#e6f7ff14' : 'transparent',
-            borderLeft: savedquery?.id === x.id ? '4px solid #00ff11ff' : 'none'
-          }}
-        >
-          <div className="hdi-text"><span className="fnav">📜</span><span className='chistory'>{x.course}</span></div>
-          <div className="hdi-opts">...</div>
-        </div>
-      ))
-    : (
-      <div className="history-data-item">
-        <div className="hdi-text">No saved queries</div>
       </div>
-    )
-  }</div>
+    </div>
+  )
+}
+
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
+
+const Skeleton = ({ width = '100%', height = 14, style = {} }) => (
+  <div className="sf-skeleton" style={{ width, height, borderRadius: 6, ...style }} />
+)
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+const Showfiles = ({
+  pdflink,
+  courseName,
+  selectedVal,
+  setshowpdf,
+  mainlogo,
+  actualDlink,
+  credits,
+  extract,
+  dataerror,
+  raw,
+}) => {
+  const [solnsOpen, setSolnsOpen] = useState(false)
+  const [recentItems, setRecentItems] = useState(getRecents)
+  const [iframeLoaded, setIframeLoaded] = useState(false)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [rawView, setRawView] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [savedquery, setSavedquery] = useState(null)
+  const [founditems, setFounditems] = useState([])
+  const [loadingQueries, setLoadingQueries] = useState(false)
+  const [queryError, setQueryError] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const [activeTab, setActiveTab] = useState('saved') // 'saved' | 'recent'
+
+  const controllerRef = useRef(null)
+  const searchDebounceRef = useRef(null)
+
+  // ── Fetch solutions (all or filtered) ───────────────────────────────────
+
+  const fetchSolutions = useCallback(async (term = '') => {
+    controllerRef.current?.abort()
+    controllerRef.current = new AbortController()
+
+    const isTerm = term.trim().length > 0
+    isTerm ? setIsSearching(true) : setLoadingQueries(true)
+    setQueryError('')
+
+    let accessToken, refreshToken
+    try {
+      ;({ accessToken, refreshToken } = getAuthTokens())
+    } catch (e) {
+      setQueryError(e.message)
+      isTerm ? setIsSearching(false) : setLoadingQueries(false)
+      return
+    }
+
+    const url = isTerm
+      ? `${domain}/api/v1/solutions/queries?courseName=${encodeURIComponent(term.trim())}`
+      : `${domain}/api/v1/solutions/queries`
+
+    const timeout = setTimeout(() => controllerRef.current?.abort(), FETCH_TIMEOUT_MS)
+
+    try {
+      const result = await fetchWithAuth(
+        url,
+        {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          signal: controllerRef.current.signal,
+        },
+        refreshToken
+      )
+      const normalised =
+        result?.solutions != null         ? result
+        : result?.data?.solutions != null  ? result.data
+        : null
+
+      setFounditems(normalised || { solutions: [], solutions_count: 0 })
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setQueryError(isTerm ? 'Search failed. Try again.' : 'Could not load saved queries.')
+      }
+    } finally {
+      clearTimeout(timeout)
+      isTerm ? setIsSearching(false) : setLoadingQueries(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchSolutions()
+    return () => {
+      controllerRef.current?.abort()
+      clearTimeout(searchDebounceRef.current)
+    }
+  }, [fetchSolutions])
+
+  const handleSearchChange = useCallback((e) => {
+    const val = e.target.value
+    setSearchTerm(val)
+    clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => fetchSolutions(val), SEARCH_DEBOUNCE_MS)
+  }, [fetchSolutions])
+
+  // Save to recents when extract resolves
+  useEffect(() => {
+    if (extract && extract !== 'loading...' && !dataerror?.length) {
+      saveToRecents(courseName, extract)
+      setRecentItems(getRecents())
+    }
+  }, [extract, courseName, dataerror])
+
+  // ── Derived ──────────────────────────────────────────────────────────────
+
+  const isLoading = extract === 'loading...'
+  const hasError = dataerror?.length > 0 || !extract || extract === 'loading...'
+  const hasDownload = /download/gi.test(actualDlink)
+
+  const renderedContent = () => {
+    if (hasError && !savedquery) return `<div class='sf-ai-error'>${dataerror}</div>`
+    if (rawView) return marked(savedquery?.solution || extract || dataerror || '')
+    return raw?.replace(/(university.?of.?ghana)|(all.?rights.?reserved)/gim, '') || ''
+  }
+
+  return (
+    <>
+      <style>{STYLES}</style>
+
+      <div className="sf-root">
+        {/* ── PDF pane ── */}
+        <div className="sf-pdf-pane">
+          <div className="sf-pdf-topbar">
+            <button className="sf-icon-btn" onClick={() => setshowpdf(false)} title="Close">
+              <i className="fa fa-times" />
+            </button>
+            <img src={mainlogo} className="sf-logo" alt="logo" />
+            <div className="sf-pdf-topbar__actions">
+              {(iframeLoaded || raw) ? (
+                <>
+                  {hasDownload && (
+                    <a
+                      href={LocalApiPath + actualDlink}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="sf-pill-btn"
+                    >
+                      <ArrowDownOutlined /> Download
+                    </a>
+                  )}
+                  <button className="sf-pill-btn sf-pill-btn--accent" onClick={() => setSolnsOpen(true)}>
+                    ✨Solutions
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="sf-skeleton" style={{ width: 90, height: 30, borderRadius: 20 }} />
+                  <div className="sf-skeleton" style={{ width: 100, height: 30, borderRadius: 20 }} />
+                </>
+              )}
+            </div>
           </div>
 
-
-  {recentItems.length > 0 && (
-    <>
-      <div className="tabbtn" style={{ width: "100%", marginTop: 10, opacity: 0.6 }}>
-<span style={{margin:"auto",fontSize:11}}>
-    <span className='fnav'>🕓</span><span style={{ paddingLeft: 3 }}>Recents</span>
-
-</span>      </div>
-     <div className="recent-box">
-         {recentItems.map((x, y) => (
-        <div
-          className="history-data-item"
-          onClick={() => { setsavedquery(x); setrawView(true); }}
-          key={"recent-" + y}
-          style={{
-            background: savedquery?.course === x.course ? '#e6f7ff14' : 'transparent',
-            borderLeft: savedquery?.course === x.course ? '4px solid orange' : 'none'
-          }}
-        >
-          <div className="hdi-text"><span className="fnav">📜</span><span className='chistory'>{x.course}</span></div>
-          <div className="hdi-opts">~</div>
+          <div className="sf-pdf-body">
+            <PdfViewer
+              url={`${LocalApiPath}${pdflink}&embedded=true`}
+              setIframeLoaded={setIframeLoaded}
+            />
+          </div>
         </div>
-      ))}
-     </div>
-    </>
-  )}
-</div>
-                         </div>}
-            {extract !="loading"?<div className={sideTabs?"toptex":" toptex toptex2"}  dangerouslySetInnerHTML={{ __html: dataerror.length && !savedquery?
-         `<div class='aierror'>${dataerror}</div>`:(rawView?`${marked(savedquery?.solution || (extract??dataerror))}`:raw?.replace(/(university.?of.?ghana)|(all.?rights.?reserved)/gim,"")??""
-)}}>
-    </div>:<div className="toptex refloader2"></div>} </div>
-                     
-    </div>:false}
+
+        {/* ── Solutions drawer ── */}
+        {solnsOpen && (
+          <div className="sf-drawer">
+            {/* Drawer topbar */}
+            <div className="sf-drawer__topbar">
+              <button className="sf-icon-btn" onClick={() => { setSolnsOpen(false); setSavedquery(null) }}>
+                <i className="fa fa-arrow-left" />
+              </button>
+              <span className="sf-drawer__title">
+                {savedquery ? (
+                  <span className="sf-drawer__title-course">
+                    {savedquery.course || courseName}
+                  </span>
+                ) : (
+                  'Solutions'
+                )}
+              </span>
+              <div className="sf-drawer__credits">
+                <Link to="/uelearn/Payment" target="_blank" rel="noopener noreferrer" className="sf-credits-pill">
+                  <i className="fa fa-bolt sf-credits-pill__icon" />
+                  <strong>{credits ?? '0'}</strong>
+                  <span className="sf-credits-pill__topup"><MoneyCollectOutlined /> Top up</span>
+                </Link>
+              </div>
             </div>
 
-         </div>  
-         {storeme?<Showsavebox    
-         selectedVal={selectedVal}
-         courseName={courseName}
-         setstoreme={setstoreme}
-         extract={extract}
-         mainlogo={mainlogo}/>:false}
-       </div> 
-    )
+            {/* Status banner */}
+            {!isLoading && (
+              <div className={`sf-banner ${hasError ? 'sf-banner--error' : 'sf-banner--success'}`}>
+                {hasError ? 'Extraction failed' : 'Extraction successful'}
+              </div>
+            )}
+
+            {/* Main body: sidebar + content */}
+            <div className="sf-drawer__body">
+
+              {/* Sidebar */}
+              <div className={`sf-sidebar ${sidebarOpen ? 'sf-sidebar--open' : ''}`}>
+                <div className="sf-sidebar__inner">
+                  <div className="sf-sidebar__art">
+                    <img src={racoon_learn} alt="" />
+                  </div>
+
+                  {/* Search */}
+                  <div className="sf-search-wrap">
+                    <i className="fa fa-search sf-search-wrap__icon" />
+                    <input
+                      type="search"
+                      className="sf-search"
+                      placeholder="Search queries…"
+                      value={searchTerm}
+                      onChange={handleSearchChange}
+                    />
+                    {isSearching && <span className="sf-search-wrap__spin sf-search-wrap__spin--anim" />}
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="sf-tabs">
+                    <button
+                      className={`sf-tab ${activeTab === 'saved' ? 'sf-tab--active' : ''}`}
+                      onClick={() => setActiveTab('saved')}
+                    >
+                      <SolutionOutlined /> Saved
+                    </button>
+                    <button
+                      className={`sf-tab ${activeTab === 'recent' ? 'sf-tab--active' : ''}`}
+                      onClick={() => setActiveTab('recent')}
+                    >
+                      Recent
+                    </button>
+                  </div>
+
+                  {/* List */}
+                  <div className="sf-list">
+                    {activeTab === 'saved' ? (
+                      loadingQueries || isSearching ? (
+                        [1,2,3].map(i => (
+                          <div className="sf-list-item" key={i}>
+                            <Skeleton height={12} width="70%" />
+                          </div>
+                        ))
+                      ) : queryError ? (
+                        <div className="sf-list-empty sf-list-empty--error">{queryError}</div>
+                      ) : founditems?.solutions?.length > 0 ? (
+                        founditems.solutions.map((x, y) => (
+                          <div
+                            className={`sf-list-item ${savedquery?.id === x.id ? 'sf-list-item--active' : ''}`}
+                            onClick={() => { setSavedquery(x); setRawView(true) }}
+                            key={x.id ?? y}
+                          >
+                            <span className="sf-list-item__initial">{(x.course||'?')[0].toUpperCase()}</span>
+                            <div className="sf-list-item__info">
+                              <span className="sf-list-item__label">{x.course}</span>
+                              <span className="sf-list-item__meta">Saved query</span>
+                            </div>
+                            <i className="fa fa-chevron-right sf-list-item__arrow" />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="sf-list-empty">
+                          {searchTerm.trim() ? `No results for "${searchTerm.trim()}"` : 'No saved queries yet'}
+                        </div>
+                      )
+                    ) : (
+                      recentItems.length > 0 ? (
+                        recentItems.map((x, y) => (
+                          <div
+                            className={`sf-list-item ${savedquery?.course === x.course ? 'sf-list-item--active sf-list-item--recent' : ''}`}
+                            onClick={() => { setSavedquery(x); setRawView(true) }}
+                            key={'r' + y}
+                          >
+                            <span className="sf-list-item__initial sf-list-item__initial--recent">{(x.course||'?')[0].toUpperCase()}</span>
+                            <div className="sf-list-item__info">
+                              <span className="sf-list-item__label">{x.course}</span>
+                              <span className="sf-list-item__meta">Recent</span>
+                            </div>
+                            <i className="fa fa-chevron-right sf-list-item__arrow" />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="sf-list-empty">No recent activity</div>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Content area */}
+              <div className="sf-content">
+                {/* Content toolbar */}
+                <div className="sf-content__toolbar">
+                  <button
+                    className="sf-icon-btn sf-sidebar-toggle"
+                    onClick={() => setSidebarOpen(v => !v)}
+                    title="Toggle sidebar"
+                  >
+                    <i className={`fa fa-${sidebarOpen ? 'indent' : 'dedent'}`} />
+                  </button>
+
+                  {!isLoading && (
+                    <div className="sf-view-toggle">
+                      <button
+                        className={`sf-view-toggle__btn ${rawView ? 'sf-view-toggle__btn--active' : ''}`}
+                        onClick={() => setRawView(true)}
+                      >
+                        <i className="fa fa-check-circle" /> Solved
+                      </button>
+                      <button
+                        className={`sf-view-toggle__btn ${!rawView ? 'sf-view-toggle__btn--active' : ''}`}
+                        onClick={() => setRawView(false)}
+                      >
+                        <i className="fa fa-code" /> Raw
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="sf-content__toolbar-right">
+                    {savedquery && (
+                      <button
+                        className="sf-pill-btn sf-pill-btn--active"
+                        onClick={() => { setSavedquery(null); setRawView(true) }}
+                        title="Back to current result"
+                      >
+                        Live result
+                      </button>
+                    )}
+                    {!isLoading && !hasError && (
+  <button className="sf-pill-btn" onClick={() => setSaveOpen(true)}>
+    <i className="fa fa-bookmark" /> Save
+  </button>
+)}
+                  </div>
+                </div>
+
+                {/* Content body */}
+                <div className="sf-content__body">
+                  {isLoading ? (
+                    <div className="sf-content__loading">
+                      {[90,75,85,60,80].map((w,i) => (
+                        <Skeleton key={i} width={`${w}%`} height={13} style={{ marginBottom: 10 }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      className="sf-prose"
+                      dangerouslySetInnerHTML={{ __html: renderedContent() }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {saveOpen && (
+        <SaveModal
+          selectedVal={selectedVal}
+          courseName={courseName}
+          setstoreme={setSaveOpen}
+          extract={extract}
+        />
+      )}
+    </>
+  )
 }
 
 export default Showfiles
 
-const Showsavebox=({setstoreme,extract,courseName,selectedVal})=>{
-    const [notemessage,setnotemessage] = useState("");
-    const [isSaving, setIsSaving] = useState(false);
-    const [fetchError, setfetchError] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
-    const [successMessage, setSuccessMessage] = useState("");
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
-    const saveme=async()=>{
-        if("Dont save bad responses" != notemessage){
-            setErrorMessage('Please type the note correctly to proceed');
-            setfetchError(true);
-            return;
-        }
-        const storedRaw = localStorage.getItem('userInfo');
-        if(!storedRaw){
-            setErrorMessage('Please login to save solutions');
-            setfetchError(true);
-            return;
-        }
-        const stored = JSON.parse(storedRaw);
-        const refreshToken = stored?.refreshToken;
-        if(!stored?.accessToken){
-            setErrorMessage('Missing access token. Please login again.');
-            setfetchError(true);
-            return;
-        }
+const STYLES = `
+  .sf-root {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    background: #0d0d0f;
+    color: #e8e8e8;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    z-index: 1000;
+    overflow: hidden;
+  }
 
-        setIsSaving(true);
-        const controller = new AbortController();
-        const timeout = setTimeout(()=>{
-            controller.abort();
-        }, 8000); // 8s timeout to avoid long hangs
-try{
-    const options = {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${stored.accessToken}`,
-        },
-        body: JSON.stringify({
-            courseName,
-            solution:extract,
-            validated:false,
-            modelName: selectedVal,
-        }),
-        signal: controller.signal,
-    };  
-   let final = await fetchWithAuth(domain+`/api/v1/solutions/`,options);
-   // Extract nested response data (fetchWithAuth already returns data.data)
-   final = final?.api_response?.data || final;
-console.log(final)
-   // show success toast briefly, then close save modal
-   setSuccessMessage('Saved successfully 🥳🥳');
-   setTimeout(()=>{
-       setSuccessMessage('');
-       setstoreme(false);
-   },1500);
-}
-        catch(err){
-            if(err.name === 'AbortError'){
-                setErrorMessage('Save request timed out. Please try again.');
-                setfetchError(true);
-            } else {
-                console.error('save error', err);
-                setErrorMessage('Error saving solution: '+(err.message||err));
-                setfetchError(true);
-            }
-        }finally{
-            clearTimeout(timeout);
-            setIsSaving(false);
-            // do not immediately close here: close happens after showing success toast
-        }
+  /* ── PDF pane ── */
+  .sf-pdf-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0; /* prevents flex child from overflowing on mobile */
+    border-right: 1px solid #1e1e24;
+    box-sizing: border-box;
+  }
+  .sf-pdf-topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #111115;
+    border-bottom: 1px solid #1e1e24;
+    flex-shrink: 0;
+  }
+  .sf-pdf-topbar__actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .sf-logo { height: 28px; object-fit: contain; }
+  .sf-pdf-body {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    min-height: 0;
+  }
+  .sf-pdf-body > * {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* ── Drawer ── */
+  .sf-drawer {
+    width: 52vw;
+    min-width: 340px;
+    max-width: 780px;
+    display: flex;
+    flex-direction: column;
+    background: #111115;
+    border-left: 1px solid #1e1e24;
+    overflow: hidden;
+  }
+  .sf-drawer__topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #0d0d0f;
+    border-bottom: 1px solid #1e1e24;
+    flex-shrink: 0;
+  }
+  .sf-drawer__title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #c8c8d0;
+  }
+  .sf-drawer__title-course { color: #7dd3fc; }
+  .sf-drawer__credits { margin-left: auto; flex-shrink: 0; }
+  .sf-credits-pill__icon { font-size: 11px; }
+  .sf-credits-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: #1e1e2a;
+    border: 1px solid #2e2e3a;
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #fbbf24;
+    text-decoration: none;
+    transition: background .15s;
+  }
+  .sf-credits-pill:hover { background: #25253a; }
+  .sf-credits-pill__topup {
+    color: #94a3b8;
+    border-left: 1px solid #2e2e3a;
+    padding-left: 8px;
+    margin-left: 4px;
+  }
+
+  /* ── Banner ── */
+  .sf-banner {
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .sf-banner--success { background: #0d2b1e; color: #4ade80; border-bottom: 1px solid #14532d; }
+  .sf-banner--error   { background: #2b0d0d; color: #f87171; border-bottom: 1px solid #7f1d1d; }
+
+  /* ── Drawer body ── */
+  .sf-drawer__body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  .sf-sidebar {
+    width: 0;
+    overflow: hidden;
+    transition: width .22s ease;
+    background: #0d0d0f;
+    border-right: 1px solid #1e1e24;
+    flex-shrink: 0;
+  }
+  .sf-sidebar--open { width: 220px; }
+  .sf-sidebar__inner {
+    width: 220px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sf-sidebar__art {
+    flex-shrink: 0;
+    height: 80px;
+    overflow: hidden;
+    position: relative;
+  }
+  .sf-sidebar__art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: .55;
+  }
+  .sf-sidebar__art::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 40%, #0d0d0f);
+  }
+
+  /* Search */
+  .sf-search-wrap {
+    position: relative;
+    padding: 10px 10px 6px;
+    flex-shrink: 0;
+  }
+  .sf-search-wrap__icon {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-30%);
+    font-size: 11px;
+    color: #555;
+    pointer-events: none;
+  }
+  .sf-search-wrap__spin--anim {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #2a2a38;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: sf-spin .7s linear infinite;
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-30%);
+    display: inline-block;
+  }
+  .sf-search-wrap__spin {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-30%);
+    font-size: 11px;
+  }
+  .sf-search {
+    width: 100%;
+    background: #1a1a20;
+    border: 1px solid #2a2a34;
+    border-radius: 8px;
+    padding: 6px 28px 6px 28px;
+    font-size: 12px;
+    color: #d0d0da;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .sf-search:focus { border-color: #4f46e5; }
+
+  /* Tabs */
+  .sf-tabs {
+    display: flex;
+    padding: 0 10px;
+    gap: 4px;
+    flex-shrink: 0;
+    border-bottom: 1px solid #1e1e24;
+    margin-bottom: 4px;
+  }
+  .sf-tab {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 11px;
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  .sf-tab--active { color: #a5b4fc; border-bottom-color: #6366f1; }
+
+  /* List */
+  .sf-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px 8px;
+  }
+  .sf-list::-webkit-scrollbar { width: 4px; }
+  .sf-list::-webkit-scrollbar-thumb { background: #2a2a36; border-radius: 4px; }
+  .sf-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+    margin-bottom: 3px;
+    border: 1px solid transparent;
+    position: relative;
+  }
+  .sf-list-item:hover { background: #16161e; border-color: #2a2a38; }
+  .sf-list-item--active {
+    background: #12122a !important;
+    border-color: #4338ca !important;
+  }
+  .sf-list-item--recent.sf-list-item--active {
+    background: #1a1408 !important;
+    border-color: #92400e !important;
+  }
+
+  /* Coloured initial avatar */
+  .sf-list-item__initial {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #3730a3, #6366f1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0;
+  }
+  .sf-list-item__initial--recent {
+    background: linear-gradient(135deg, #92400e, #d97706);
+  }
+  .sf-list-item--active .sf-list-item__initial {
+    box-shadow: 0 0 0 2px #6366f1;
+  }
+  .sf-list-item--recent.sf-list-item--active .sf-list-item__initial {
+    box-shadow: 0 0 0 2px #d97706;
+  }
+
+  /* Text block */
+  .sf-list-item__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sf-list-item__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 500;
+    color: #c0c0cc;
+    line-height: 1.3;
+  }
+  .sf-list-item--active .sf-list-item__label { color: #a5b4fc; }
+  .sf-list-item--recent.sf-list-item--active .sf-list-item__label { color: #fcd34d; }
+  .sf-list-item__meta {
+    font-size: 10px;
+    color: #444;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  /* Chevron */
+  .sf-list-item__arrow {
+    flex-shrink: 0;
+    font-size: 9px;
+    color: #333;
+    transition: color .12s, transform .12s;
+  }
+  .sf-list-item:hover .sf-list-item__arrow { color: #666; transform: translateX(1px); }
+  .sf-list-item--active .sf-list-item__arrow { color: #6366f1; transform: translateX(2px); }
+
+  .sf-list-empty {
+    padding: 20px 12px;
+    font-size: 12px;
+    color: #383840;
+    text-align: center;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .sf-list-empty--error { color: #f87171; }
+
+  /* ── Content area ── */
+  .sf-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sf-content__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #1e1e24;
+    flex-shrink: 0;
+    background: #0f0f13;
+  }
+  .sf-content__toolbar-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+
+  .sf-view-toggle {
+    display: flex;
+    background: #1a1a20;
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+  }
+  .sf-view-toggle__btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: #666;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background .12s, color .12s;
+  }
+  .sf-view-toggle__btn--active { background: #2a2a38; color: #a5b4fc; }
+
+  .sf-content__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+  .sf-content__body::-webkit-scrollbar { width: 5px; }
+  .sf-content__body::-webkit-scrollbar-thumb { background: #2a2a36; border-radius: 4px; }
+
+  .sf-content__loading { display: flex; flex-direction: column; padding-top: 8px; }
+
+  /* Prose styles */
+  .sf-prose { font-size: 14px; line-height: 1.75; color: #ccd0da; }
+  .sf-prose h1,.sf-prose h2,.sf-prose h3 { color: #e8e8f0; margin: 1.2em 0 .4em; font-weight: 600; }
+  .sf-prose h3 { font-size: 15px; color: #a5b4fc; }
+  .sf-prose p { margin: 0 0 .9em; }
+  .sf-prose code {
+    background: #1e1e2a;
+    border: 1px solid #2a2a38;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12px;
+    color: #7dd3fc;
+  }
+  .sf-prose pre {
+    background: #141418;
+    border: 1px solid #1e1e28;
+    border-radius: 8px;
+    padding: 14px;
+    overflow-x: auto;
+    margin: 1em 0;
+  }
+  .sf-prose pre code { background: transparent; border: none; padding: 0; color: #c8d3f0; }
+  .sf-prose ul,.sf-prose ol { padding-left: 1.4em; margin: .6em 0; }
+  .sf-prose li { margin-bottom: .3em; }
+  .sf-prose strong { color: #e2e8f0; }
+  .sf-prose a { color: #7dd3fc; text-decoration: none; }
+  .sf-prose a:hover { text-decoration: underline; }
+  .sf-ai-error {
+    background: #2b0d0d;
+    border: 1px solid #7f1d1d;
+    border-radius: 8px;
+    padding: 16px;
+    color: #f87171;
+    font-size: 13px;
+  }
+
+  /* ── Buttons ── */
+  .sf-icon-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #1e1e28;
+    background: #1a1a20;
+    color: #aaa;
+    cursor: pointer;
+    transition: background .12s, color .12s;
+    flex-shrink: 0;
+  }
+  .sf-icon-btn:hover { background: #22222e; color: #e0e0e8; }
+
+  .sf-pill-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid #2a2a38;
+    background: #1a1a22;
+    color: #a0a0b8;
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background .12s, color .12s;
+    white-space: nowrap;
+  }
+  .sf-pill-btn:hover { background: #22222e; color: #e0e0e8; }
+  .sf-pill-btn--accent { background: #1e1b4b; border-color: #4338ca; color: #a5b4fc; }
+  .sf-pill-btn--accent:hover { background: #25224f; }
+  .sf-pill-btn--active { background: #1c2a14; border-color: #4d7c0f; color: #a3e635; }
+
+  .sf-sidebar-toggle { flex-shrink: 0; }
+
+  /* ── Skeleton ── */
+  .sf-skeleton {
+    background: linear-gradient(90deg, #1a1a22 25%, #22222e 50%, #1a1a22 75%);
+    background-size: 200% 100%;
+    animation: sf-shimmer 1.4s infinite;
+    display: block;
+  }
+  @keyframes sf-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ── Toast ── */
+  .sf-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    z-index: 9999;
+    animation: sf-fadein .2s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,.5);
+  }
+  .sf-toast--error   { background: #2b0d0d; border: 1px solid #7f1d1d; color: #f87171; }
+  .sf-toast__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sf-toast__dot--error   { background: #f87171; }
+  .sf-toast__dot--success { background: #4ade80; }
+  .sf-toast--success { background: #0d2b1e; border: 1px solid #14532d; color: #4ade80; }
+  @keyframes sf-fadein { from { opacity:0; transform: translateX(-50%) translateY(8px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+
+  /* ── Save modal ── */
+  .sf-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+  }
+  .sf-modal {
+    width: 420px;
+    max-width: 94vw;
+    background: #111115;
+    border: 1px solid #1e1e28;
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6);
+    animation: sf-fadein .2s ease;
+  }
+  .sf-modal__close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0,0,0,.4);
+    border: none;
+    color: #aaa;
+    font-size: 16px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sf-modal__close:hover { color: #fff; }
+  .sf-modal__art { height: 140px; overflow: hidden; position: relative; }
+  .sf-modal__art img { width: 100%; height: 100%; object-fit: cover; opacity: .6; }
+  .sf-modal__art-fade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 30%, #111115);
+  }
+  .sf-modal__body { padding: 20px 22px 24px; }
+  .sf-modal__title { margin: 0 0 14px; font-size: 16px; font-weight: 700; color: #e8e8f0; }
+  .sf-modal__notice {
+    display: flex;
+    gap: 10px;
+    background: #1c1a0e;
+    border: 1px solid #3d3200;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: #d4b84a;
+    line-height: 1.5;
+  }
+  .sf-modal__notice-icon { font-size: 14px; flex-shrink: 0; color: #d97706; margin-top: 1px; }
+  .sf-modal__notice strong { color: #fbbf24; }
+  .sf-modal__field { margin-bottom: 16px; }
+  .sf-modal__field label { display: block; font-size: 11px; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .sf-modal__confirm-phrase {
+    display: inline-block;
+    background: #1a1a22;
+    border: 1px dashed #3a3a48;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #a5b4fc;
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+  .sf-modal__field input {
+    width: 100%;
+    background: #1a1a22;
+    border: 1px solid #2a2a38;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: #d0d0da;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color .15s;
+  }
+  .sf-modal__field input:focus { border-color: #6366f1; }
+  .sf-modal__input--invalid { border-color: #f87171 !important; }
+  .sf-modal__save-btn {
+    width: 100%;
+    padding: 11px;
+    background: #4f46e5;
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background .15s, opacity .15s;
+  }
+  .sf-modal__save-btn:hover:not(:disabled) { background: #4338ca; }
+  .sf-modal__save-btn:disabled { opacity: .55; cursor: not-allowed; }
+  .sf-modal__spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: sf-spin .6s linear infinite;
+    display: inline-block;
+  }
+  @keyframes sf-spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    /* PDF pane fills the whole screen normally */
+    .sf-root { flex-direction: column; }
+    .sf-pdf-pane {
+      flex: 1;
+      width: 100vw !important;
+      min-width: 0 !important;
+      border-right: none;
     }
-    return (
-        <div className="storesoln">
-                     {fetchError && <Toaster setfetchError={setfetchError} errorMessage={errorMessage} />}
-                    {successMessage && <SuccessToaster message={successMessage} />}
 
-            <div className="storesolnbody">
-                <div className="savetitle" style={{zIndex:2}}>Save response</div>
-                <div className="saveimg">
-                    <img className="saveimgitem" src={racoon_save} />
-                    <div className="rbackdrop" style={{left:0,height:"220px",opacity:.8}}></div>
+    /* Drawer slides up as a full-screen fixed overlay — never competes with PDF pane */
+    .sf-drawer {
+      position: fixed;
+      inset: 0;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      border-left: none;
+      z-index: 1100;
+      animation: sf-slide-up .22s ease;
+    }
 
-                </div>
-                    <div className="bbtn2" style={{zIndex:2}} onClick={()=>{setstoreme(false)}}><div className="ba"><CloseCircleOutlined/><span className='prem3'></span></div></div> 
+    /* Sidebar narrows slightly on small screens */
+    .sf-sidebar--open { width: 180px; }
 
-                <p className="note"><span className="fnav"><i className="fa fa-exclamation-circle fa-dark"></i></span> Note: Dont save bad responses</p>
-                <p className="notemessage">
-                    Saving your good responses helps you not to spend your credits for same topics</p>
-                <div className="savebox"><span className="fnav"><i className="fa fa-save fa-dark"></i></span><input type="text" onChange={(e) => setnotemessage(e.target.value)} className="savetext" placeholder="Please type the above 'Note'" /></div>
-                <div className="download btnlight" onClick={saveme}><div className="ba">{isSaving?"Saving...":"Save"}<span className='prem2'></span></div></div>
-            </div>
-        </div>
+    /* Tighten topbar on small screens */
+    .sf-drawer__topbar { padding: 10px 12px; }
 
-    )}
+    /* Hide the Top up label to save space — icon + credits number is enough */
+    .sf-credits-pill__topup { display: none; }
+  }
 
-    
-const Toaster=({errorMessage,setfetchError})=>{
-    setTimeout(()=>setfetchError(false),2000)
-    return (
-<div className="toast">
-<div className="successmessage">{  "🔴 "+errorMessage.toLowerCase()}</div>
-</div>
-    )
-}
-
-const SuccessToaster=({message})=>{
-    setTimeout(()=>{},2000)
-    return (
-<div className="toast">
-<div className="successmessage" style={{color:'#3c763d'}}>{  "✅ "+message}</div>
-</div>
-    )
-}
+  @keyframes sf-slide-up {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+`

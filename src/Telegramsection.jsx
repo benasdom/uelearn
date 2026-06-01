@@ -9,7 +9,7 @@ export default function TelegramSection() {
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap');
 
         .telegram-wrapper {
-          --telegram-blue: #0088cc;
+          --telegram-blue: #00ff4c;
           --telegram-light: #64b5f6;
           --telegram-dark: #005f8c;
           --bg-gradient-start: #001a2e;

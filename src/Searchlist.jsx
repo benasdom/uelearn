@@ -232,6 +232,7 @@ target="_blank"
                         
                     <div className="ready">
                         <div className="big">🔎</div>
+                        <div className="rbackdrop"></div>
                             <div className="desc err4">
 <div className="fnav2" style={{padding:2}}>                        <img className="reglate" src={mainlogo} alt=""/>
 </div>

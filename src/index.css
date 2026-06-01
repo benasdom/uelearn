@@ -3244,8 +3244,6 @@ border-radius: 10px;
 }
 .big{
   font-size: 150px;
-  filter: grayscale(.2);
-  opacity:.1;
 }
 .streak{
   display:flex;
