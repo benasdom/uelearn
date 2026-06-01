@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "start": "node src/server.js",
     "serve": "vercel dev",
-    "deploy": "vercel --prod"
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
