@@ -352,7 +352,7 @@ const Showfiles = ({
                 )}
               </span>
               <div className="sf-drawer__credits">
-                <Link to="/uelearn/Payment" target="_blank" rel="noopener noreferrer" className="sf-credits-pill">
+                <Link to="/Payment" target="_blank" rel="noopener noreferrer" className="sf-credits-pill">
                   <i className="fa fa-bolt sf-credits-pill__icon" />
                   <strong>{credits ?? '0'}</strong>
                   <span className="sf-credits-pill__topup"><MoneyCollectOutlined /> Top up</span>

@@ -348,7 +348,7 @@ export default function Contact() {
         {/* Toast */}
         <div className={`amb-toast${toast ? ' show' : ''}`}>{toast}</div>
 
-        <Link to="/uelearn/" className="amb-back">
+        <Link to="/" className="amb-back">
           <i className="fa fa-arrow-left" />
         </Link>
 
@@ -418,19 +418,19 @@ export default function Contact() {
         </div>
 
         <nav className="amb-nav">
-          <Link to="/uelearn/" className="amb-nav-item">
+          <Link to="/" className="amb-nav-item">
             <span className="amb-nav-icon"><img className="amb-nav-logo" src={mainlogo} alt="" /></span>
             <span className="amb-nav-label">Home</span>
           </Link>
-          <Link to="/uelearn/about" className="amb-nav-item">
+          <Link to="/about" className="amb-nav-item">
             <span className="amb-nav-icon"><SmileOutlined /></span>
             <span className="amb-nav-label">About</span>
           </Link>
-          <Link to="/uelearn/contact" className="amb-nav-item active">
+          <Link to="/contact" className="amb-nav-item active">
             <span className="amb-nav-icon"><TeamOutlined /></span>
             <span className="amb-nav-label">Contact</span>
           </Link>
-          <Link to="/uelearn/payment" className="amb-nav-item" target="_blank" rel="noopener noreferrer">
+          <Link to="/payment" className="amb-nav-item" target="_blank" rel="noopener noreferrer">
             <span className="amb-nav-icon"><MoneyCollectOutlined /></span>
             <span className="amb-nav-label">Upgrade</span>
           </Link>

@@ -216,9 +216,9 @@ useEffect(() => {
             <ul className="mlist">
                 <div className="space"></div>
                 <img className="reglate2" src={mainlogo} alt=""/>
-               <Link to="/uelearn/about"> <li>ABOUT</li></Link>
-               <Link to="/uelearn/contact"> <li>CONTACT</li></Link>
-               <Link to="/uelearn/payment" target="_blank" rel="noopener noreferrer"> <li>UPGRAGE</li></Link>
+               <Link to="/about"> <li>ABOUT</li></Link>
+               <Link to="/contact"> <li>CONTACT</li></Link>
+               <Link to="/payment" target="_blank" rel="noopener noreferrer"> <li>UPGRAGE</li></Link>
 <div className="rightmenu">
     <Search setsearching={setsearching} eprop={"none"} setfind={setfind} find={find} searching={searching} bar={bar}/>
                <div className="space"></div>
@@ -334,10 +334,10 @@ useEffect(() => {
     </div>
     <div className="navbottom">
 <div className="nbottomlist">
-<Link to="/uelearn/"><div className='navb'> <i> <img className="homepic" src={mainlogo} alt=""/></i><div className='nt'>home</div></div></Link>
-<Link to="/uelearn/about"><div className='navb'> <i>{<SmileOutlined/>}</i><div  className='nt'>about</div></div></Link>
-  <Link to="/uelearn/contact"> <div className='navb'> <i>{<TeamOutlined/>}</i><div  className='nt'>contact</div></div></Link>
-  <Link to="/uelearn/payment"   target="_blank" rel="noopener noreferrer"> <div className='navb'> <i>{<MoneyCollectOutlined/>}</i><div  className='nt'>upgrade</div></div></Link>
+<Link to="/"><div className='navb'> <i> <img className="homepic" src={mainlogo} alt=""/></i><div className='nt'>home</div></div></Link>
+<Link to="/about"><div className='navb'> <i>{<SmileOutlined/>}</i><div  className='nt'>about</div></div></Link>
+  <Link to="/contact"> <div className='navb'> <i>{<TeamOutlined/>}</i><div  className='nt'>contact</div></div></Link>
+  <Link to="/payment"   target="_blank" rel="noopener noreferrer"> <div className='navb'> <i>{<MoneyCollectOutlined/>}</i><div  className='nt'>upgrade</div></div></Link>
  <div onClick={leave} className='navb'> <i>{<LogoutOutlined/>}</i><div  className='nt'>Logout</div></div>
 </div>
 

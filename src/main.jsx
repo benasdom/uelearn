@@ -14,12 +14,12 @@ const MainRouter = () => {
   const [credits, setCredits] = useState(0);
   
   return (
-    <Router>
-      <Routes>
-        <Route path="/uelearn" element={<App />} />
-        <Route path="/uelearn/contact" element={<Contact />} />
-        <Route path="/uelearn/about" element={<About />} />
-        <Route path="/uelearn/payment" element={<Payment setcredits={setCredits} />} />
+    <Router basename="/uelearn">
+    <Routes>
+        <Route path="/" element={<App />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/payment" element={<Payment setcredits={setCredits} />} />
         <Route path="*" element={<Notfound />} />
       </Routes>
     </Router>

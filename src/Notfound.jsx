@@ -21,7 +21,7 @@ const  Notfound=()=> {
         </div>
   </div>
   <br></br>
-  <Link to="/uelearn/" className='return'>👈 </Link>
+  <Link to="/" className='return'>👈 </Link>
     </div>
 </>
    
