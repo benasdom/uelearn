@@ -1,488 +1,728 @@
-import { InfoCircleFilled, LockOutlined, MailOutlined, MessageOutlined,UserAddOutlined, PhoneOutlined, ClockCircleOutlined, CheckCircleOutlined, EyeOutlined } from "@ant-design/icons";
-import jess from '../../public/imgs/jess.jpg';
-import brown from '../../public/imgs/brown.jpg';
-import jude from '../../public/imgs/jude.jpg';
-import racoon_learn from '../../public/imgs/racoon_learn.jpg';
-import guylogs from '../../public/imgs/guylogs.png';
-import logo from '../../public/imgs/titled.jpg';
-import { useState, useEffect } from "react";
-import {domain} from "./authfetch";
+/**
+ * UELearn — Auth Component (production-ready)
+ * Views: Login · Sign Up · OTP · Forgot Password · Reset Sent · Terms · Privacy Policy
+ */
 
-const rand = Math.floor(Math.random() * 4);
-export default function Register({setshows}) {
-    const [email, setemail] = useState("");
-    const [firstName, setfirstName] = useState("");
-    const [lastName, setlastName] = useState("");
-    const [otp, setotp] = useState("");
-    const [msisdn, setmsisdn] = useState("");
-    const [confirm, setconfirm] = useState("");
-    const [password, setpassword] = useState("");
-    const [showing, setshowing] = useState(false);
-    const [indics, setindics] = useState(false)
-    const [olduseremail, setolduseremail] = useState("");
-    const [oldpwd, setoldpwd] = useState("");
-    const [message, setmessage] = useState("");
-    const [skipotp, setskipotp] = useState(false);
-    const [showopage, setshowopage] = useState(false);
-    const [hasref, sethasref] = useState(false);
-    const [counter, setcounter] = useState(10);
-    const [temptoken, settemptoken] = useState(""); 
-    const [showkeys, setshowkeys] = useState(false); 
-    const [referalCode, setreferalCode] = useState(""); 
-    const [bools, setbools] = useState(false)
-    const [mountsignup  , setmountsignup  ] = useState(false)
-    const [logged, setlogged] = useState({
-        id:'', dateCreated:'',firstName:'', lastName:'',msisdn:''
-    })
-    
-// Added missing state
-// ===== ADD THIS FUNCTION somewhere near the top of your Register component =====
+import {
+  InfoCircleFilled, LockOutlined, MailOutlined, MessageOutlined,
+  UserAddOutlined, PhoneOutlined, ClockCircleOutlined, CheckCircleOutlined,
+  EyeOutlined, EyeInvisibleOutlined, GoogleOutlined, ArrowLeftOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
+import { useState, useEffect, useRef } from "react";
+import { domain } from "./authfetch";
 
-const syncWithExtension = (userInfo) => {
-    try {
-        // The extension ID from chrome://extensions
-        // Replace this with your actual extension ID
-        const EXTENSION_ID = 'jfphmdfhigoppbldgnclkpjikkbjmkmo';
-        
-        if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
-            chrome.runtime.sendMessage(
-                EXTENSION_ID,
-                { action: 'syncAuth', userInfo: userInfo },
-                (response) => {
-                    if (chrome.runtime.lastError) return; // extension not installed — ignore
-                    if (response && response.success) {
-                        console.log('[ueLearn] Auth synced to extension ✅');
-                    }
-                }
-            );
-        }
-    } catch(e) {
-        // Silently ignore — extension may not be installed
-    }
+import jess         from "../../public/imgs/jess.jpg";
+import brown        from "../../public/imgs/brown.jpg";
+import jude         from "../../public/imgs/jude.jpg";
+import guylogs      from "../../public/imgs/guylogs.png";
+import racoon_learn from "../../public/imgs/racoon_learn.jpg";
+import logo         from "../../public/imgs/titled.jpg";
+
+// ─── constants ────────────────────────────────────────────────────────────────
+
+const PANEL_IMGS = [jess, jude, guylogs, brown];
+// Stable random pick per mount — stored outside component to avoid re-rolling on re-render
+const PANEL_IMG = PANEL_IMGS[Math.floor(Math.random() * PANEL_IMGS.length)];
+
+const VIEW = {
+  LOGIN:      "login",
+  SIGNUP:     "signup",
+  OTP:        "otp",
+  FORGOT:     "forgot",
+  RESET_SENT: "reset_sent",
+  POLICY:     "policy",
+  TERMS:      "terms",
 };
 
-// ===== THEN UPDATE populate() to call it =====
+const OTP_RESEND_SECS = 60;
 
-    const bb = [jess, jude,guylogs, brown];
-    const found = bb[rand];
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
-    const seterrors = (pop) => {
-        setmessage(pop);
-        setshowing(true);
-        setindics(false);
-        setTimeout(() => {
-            setshowing(false);
-        }, 6000);
-    };
-    
+const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
-    const getOtp=(msisdn)=>{
-    setbools(true);
-        setindics(true);
+function persistUserInfo(userData) {
+  try { localStorage.setItem("userInfo", JSON.stringify(userData)); } catch { /* quota exceeded */ }
+}
 
-startcounter();
-    const options = {
-        method: 'POST',
-        headers: {
-            "Content-Type":"application/json",
-            "Authorization": `Bearer ${temptoken}`},
-        body:JSON.stringify({msisdn:msisdn}),
-     };
-
-    try{
-        fetch(domain+"/api/v1/send/sms/otp",options)
-        .then((res)=>{res.status==200?seterrors("Sent successfully"):seterrors("Failed to send OTP, try again");setskipotp(true);})
-        .catch(()=>{ seterrors("There was a promblem please retry");setindics(false);})
-        .finally(()=>{setbools(false)})
+function syncWithExtension(userInfo) {
+  try {
+    const EXTENSION_ID = "jfphmdfhigoppbldgnclkpjikkbjmkmo";
+    if (window.chrome?.runtime?.sendMessage) {
+      window.chrome.runtime.sendMessage(
+        EXTENSION_ID,
+        { action: "syncAuth", userInfo },
+        () => { void window.chrome.runtime.lastError; }
+      );
     }
-    catch(err){
-        seterrors(`There was an issue: ${err}`)}
+  } catch { /* extension not installed */ }
 }
 
-const startcounter=()=>{
-    let val=setInterval(()=>{counter>=1?setcounter((counter)=>counter-1):false},1000)
-    setTimeout(()=>{clearInterval(val);setbools(false);setcounter(15)},11000)
+// ─── component ────────────────────────────────────────────────────────────────
 
+export default function Register({ setshows }) {
 
-}
- 
+  /* ── form fields ── */
+  const [email,       setemail]       = useState("");
+  const [firstName,   setfirstName]   = useState("");
+  const [lastName,    setlastName]    = useState("");
+  const [password,    setpassword]    = useState("");
+  const [confirm,     setconfirm]     = useState("");
+  const [msisdn,      setmsisdn]      = useState("");
+  const [otp,         setotp]         = useState("");
+  const [loginEmail,  setloginEmail]  = useState("");
+  const [loginPwd,    setloginPwd]    = useState("");
+  const [forgotEmail, setforgotEmail] = useState("");
+  const [referalCode, setreferalCode] = useState("");
+  const [hasref,      sethasref]      = useState(false);
+  const [agreed,      setagreed]      = useState(false);
 
-useEffect(() => {
-    try{
-        logged.id!=""
-        ?localStorage.setItem("userInfo",JSON.stringify(logged))
-        :false;
-        settemptoken(logged.accessToken)
+  /* ── ui state ── */
+  const [view,        setview]        = useState(VIEW.LOGIN);
+  const [legalReturn, setlegalReturn] = useState(VIEW.SIGNUP);
+  const [showPwd,     setshowPwd]     = useState(false);
+  const [showPwd2,    setshowPwd2]    = useState(false);
+  const [loading,     setloading]     = useState(false);
+  const [otpLoading,  setotpLoading]  = useState(false);
+  const [counter,     setcounter]     = useState(0);
+  const [temptoken,   settemptoken]   = useState("");
+  const [skipotp,     setskipotp]     = useState(false);
 
-    }
-    catch(err){err=>seterrors("Error",err)
+  /* ── toast ── */
+  const [toast,      settoast]      = useState({ message: "", visible: false, isSuccess: false });
+  const toastTimer = useRef(null);
+  const countRef   = useRef(null);
 
-    }
-}, [logged])
-
-
-
-    useEffect(() => {
-        if (showing) {
-            const messageElement = document.querySelector(".successmessage");
-            if (messageElement) {
-                /success/gim.test(message)?messageElement.textContent = "🟢"+message+"🥳🥳🥳"
-                :messageElement.textContent = "🔴"+message;
-    
-            }
-        }
-    }, [message, showing]);
-  
-const activateuser=()=>{
-        try{
-            setshows(false)
-    }
-    catch(err){
-    seterrors(err)
-    }
-
-
-}
-const otpRequestCheck=(vals)=>{
-    if(vals=="" || !vals){
-        
-        seterrors("Please enter correct OTP code");
-        setbools(false);
-
-        return false;
-    }
-    const options = {
-        method: 'POST',
-        headers: {
-            "Content-Type":"application/json",
-            "Authorization": `Bearer ${temptoken}`},
-        body:JSON.stringify({path:"msisdn",otp:vals}),
-     };
-    try{
-        let errmess="Verification failed, you can go login and try again later"
-        fetch(domain+"/api/v1/verification",options)
-        .then((res)=>{ console.log(res);res.status==200?activateuser():servererrors(res);setskipotp(true);})
-        .catch((err)=>{err?seterrors("There was a problem please retry"):false; setskipotp(true);})
-        .finally(()=>{setbools(false)})
-    }
-    catch(err){
-        seterrors("Verification failed, you can go login and try again later")
-        setbools(false)
-
-    }
-
-}
-const authenticate= ()=>{
-    let id =`${new Date().getTime()}`
-    let payloadData={email,msisdn,firstName,lastName,password}
-    payloadData=referalCode.length?{...payloadData,referalCode}:payloadData
-    const options = {
-        method: 'POST',
-        headers: {
-            "User-Agent":"Apidog/1.0.0 (https://apidog.com)",
-            "Content-Type":"application/json"},
-        body:JSON.stringify(payloadData),
-        redirect: 'follow'
-     };
-     
-
-fetch(domain+"/api/v1/auth/register", options)
-.then(response => response.json())
-.then((result) =>{result.status?userreg(result):servererrors(result)})
-.catch((error)=>{ seterrors(`${error}`);console.log(error); })
-}
-const servererrors=(pop)=>{
-    seterrors((pop?.message+(pop?.details??"")))
-}
-const userreg=(result)=>{
-populate(result);
-setshowopage(true);
-
-}
-
-const populate=(result)=>{
-       setlogged({...result.data.userData,accessToken:result.data.token,refreshToken:result.data.refreshToken});
-    setindics(false);
-    seterrors(`Successful Entry`);
-    let userInfos = {...result.data.userData,accessToken:result.data.token,refreshToken:result.data.refreshToken}
-    syncWithExtension(userInfos);
-
- 
-}
-
-    const ValidateSignup = (pp) => {
-        setskipotp(false);
-        
-        if(!showopage){
-
-        if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/gim.test(email.trim())) {
-            seterrors("Add valid email eg. hithere@gmail.com");
-            return false;
-        }
-         else if (firstName.trim().length<3){
-            seterrors("firstName must have a valid length");
-            return false;
-        }
-         else if (lastName.trim().length<3){
-            seterrors("lastName must have a valid length");
-            return false;
-        }
-         else if (password === ""){
-            seterrors("Add a valid password");
-            return false;
-        }
-        else if (/\s/gim.test(password)) {
-            seterrors("Password should not be spaced");
-            return false;
-        }
-     
-        else if (password.length < 5) {
-            seterrors("Password must be at least 5 char long");
-            return false;
-        }
-        else if (confirm !== password) {
-            seterrors("Enter the same password to confirm");
-            return false;
-        }
-        else{
-            setindics(true)
-            authenticate()
-            
-        }
-        
-        }
-        else{
-                    if (msisdn.length < 10) {
-            seterrors("Add a valid Phone number");
-            return false;
-        }
-        else if (otp.length!=6 && pp=="proceed") {
-            seterrors("Wrong OTP code");
-            return false;
-        }
-        else {
-            if(pp=="verify"){
-            otpRequestCheck(otp)
-            }
-            else{
-
-            pp !="proceed"?getOtp(msisdn):false;
-            }
-        }
-
-
-        }
-    };
-    
-
-    const ValidateLogin=()=>{
-        if(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/gim.test(olduseremail.trim())==false){
-            seterrors("Add a valid emial eg.hello@gmail.com");
-        return false;
-        } 
-        else if (/\s/gim.test(olduseremail)){
-            seterrors("email should not be spaced");
-        return false
-        }
-        else if(oldpwd==""){
-            seterrors("Add a valid password");
-        return false;
-        }
-        else if (/\s/gim.test(oldpwd)){
-            seterrors("Password should not be spaced");
-
-        }
-
-        else if(oldpwd.length<5){
-            seterrors("password must be at least 5 char long");
-        return false;
-        }else{
-            setindics(true)
-            authlogin()
-
-        }
-    }
-    const authlogin=()=>{
-        let id =`${new Date().getTime()}`
-        let payloadData={email:olduseremail,password:oldpwd}
-        const options = {
-            method: 'POST',
-            headers: {
-                "User-Agent":"Apidog/1.0.0 (https://apidog.com)",
-                "Content-Type":"application/json"},
-            body:JSON.stringify(payloadData),
-            redirect: 'follow'
-         };
-fetch(domain+"/api/v1/auth/login", options)
-.then(response => response.json())
-.then((result) =>{result.status?userin(result):servererrors(result)})
-.catch((error)=>{ seterrors(`${error}`)})
-}
-const userin=(result)=>{
-populate(result);
-setTimeout(() => {
-activateuser()
-}, 1000);
-
-}
-
-
-
-    return (
-        <div>
-            <div className="register">
-                {showing && <div className="successmessage"></div>}
-                <img className="regpic" src={found} alt=""/>
-                <img className="regpic" src={found} alt=""/>
-                
-                <div className="regbox">
-                    <div className="racoonbox">
-                        
-                        <img className="racoondp" src={racoon_learn}/>
-
-
-                    <div className="racoonintro">
-                        <div className="rbackdrop" style={{zIndex:2}}></div>
-
-                        <div className="wmessage">Welcome to UELearn</div>
-                        <div className="regnote">study with aura !</div>
-                    </div>
-
-                    </div>
-                    <div className="half">
-                        <div className="picked">
-                            <img src={found} className="brown" alt=""/>
-                            <img src={found} className="brown mask" alt=""/>
-                        </div>
-                    </div>
-                    <div className="half">
-
-                        <div className="regform">
-                           {!showopage && mountsignup?(
-                            <div className="mbox">
-                            <div className="inputform">
-                                <MailOutlined className="micon"/>
-                                <input onChange={(e) => setemail(e.currentTarget.value)} type="text" placeholder='EMAIL' className="impbox"/>
-                            </div>
-                            <div className="inputform">
-                                <UserAddOutlined className="micon"/>
-                                <input onChange={(e) => setfirstName(e.currentTarget.value)} type="text" placeholder='firstName' className="impbox"/>
-                            </div>
-                            <div className="inputform">
-                                <UserAddOutlined className="micon"/>
-                                <input onChange={(e) => setlastName(e.currentTarget.value)} type="text" placeholder='lastName' className="impbox"/>
-                            </div>
-                            <div className="inputform" >
-                                {!showkeys?<EyeOutlined onClick={()=>setshowkeys(!showkeys)} className="micon"/>
-                            :<LockOutlined onClick={()=>{setshowkeys(!showkeys)}} className="micon" />    
-                            }
-                                <input onChange={(e) => setpassword(e.currentTarget.value)} type={showkeys?"text":"password"} placeholder='PASSWORD' className="impbox"/>
-                            </div>
-                            <div className="inputform" >
-                                {!showkeys?<EyeOutlined onClick={()=>setshowkeys(!showkeys)}/>
-                            :<LockOutlined onClick={()=>{setshowkeys(!showkeys)}} className="micon"/>    
-                            }
-                                <input onChange={(e) => setconfirm(e.currentTarget.value)} type={showkeys?"text":"password"} placeholder='CONFIRM PASSWORD' className="impbox"/>
-                            </div>
-                            
-                            {hasref ? (
-                                <>
-                                    <div className="regbutton" onClick={() => sethasref(false)}>
-                                        remove referal section
-                                    </div>
-                                    <div className="inputform">
-                                        <input className='impbox' type="text" onChange={(e) => setreferalCode(e.currentTarget.value)} placeholder='referal code...'/>
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="noted">
-                                        <InfoCircleFilled  className="micon"/>Optional: Add referal code
-                                    </div>
-                                    <div className="regbutton" onClick={() => sethasref(true)}>
-                                        Add referal code
-                                    </div>
-                                </>
-                            )}
-                            <div className="otpverbox">
-                                
-                            <div className="regbutton" onClick={()=>{ValidateSignup("proceed")}}>
-                                {indics?"...":"Sign Up"}
-                            </div>
-                            <div className="regbutton" style={{filter:"invert("}} onClick={()=>{setmountsignup(false)}}>
-                                {"Login Instead?"}
-                            </div>
-                            </div>
-                            
-                            </div>):false}
-                            {!showopage && !mountsignup?(
-                                <div className="mbox">
-                           
-                            <div className="inputform">
-                                <UserAddOutlined className="micon"/>
-                                <input onChange={(e) => setolduseremail(e.currentTarget.value)} type="text" placeholder='username' className="impbox"/>
-                            </div>
-                            <div className="inputform">
-                                {!showkeys?<EyeOutlined onClick={()=>setshowkeys(!showkeys)}/>
-                            :<LockOutlined onClick={()=>{setshowkeys(!showkeys)}} />    
-                            }
-                                <input onChange={(e) => setoldpwd(e.currentTarget.value)} type={showkeys?"text":"password"} placeholder='PASSWORD' className="impbox"/>
-                            </div>
-                            
-                         
-                            <div className="regbutton" onClick={()=>{ValidateLogin()}}>
-                                {indics?"...":"Sign in"}
-                            </div>
-                            
-                            <div className="noted">
-                                <InfoCircleFilled className="micon"/> Dont have an account?
-                            </div>
-                            
-                            <div className="regbutton" style={{background:"black",color:"white"}} onClick={()=>{setmountsignup(true)}}>
-                                {"Sign Up Instead?"}
-                            </div></div>
-                            ):false}
-                           {showopage?( <div className="tootp">
-                                   <div className="inputform">
-                                <PhoneOutlined/>
-                                <input onChange={(e) => setmsisdn(e.currentTarget.value)} type="text" placeholder='Phone' className="impbox"/>
-                            </div>
-                            <div className="noted">
-                                <InfoCircleFilled className="micon"/> Click verify to get OTP code
-                            </div>
-                            <div className="otpverbox"> 
-                                <div className="otpver" onClick={ValidateSignup}> 
-                                    <CheckCircleOutlined className="micon" style={{filter: "invert(1)"}}/>{bools?"...":"Verify"}
-                                </div>
-                                <div className="resend">
-                                    <ClockCircleOutlined className="micon"/> <span className="count">{!bools?"count down":"wait.."+counter+"s"}</span>
-                                </div>
-                            </div>
-                            <div className="inputform">
-                                <MessageOutlined/>
-                                <input onChange={(e) => setotp(e.currentTarget.value)} type="number" placeholder='OTP CODE HERE (6 DIGIT)' className="impbox"/>
-                            </div>
-                            <div className="regbutton" onClick={()=>{ValidateSignup("verify")}}>
-                                {indics && bools?"...":"Proceed"}
-
-                            </div>
-                            {skipotp?
-                                  <>  <div className="noted">
-                                <InfoCircleFilled className="micon"/> Didn't receive OTP? You can skip and verify later
-                            </div>
-                            
-                            <div className="skipbtn" onClick={activateuser} ><i className="arrow-right"></i> {`Skip >`}</div>
-                            </>
-                            :""}
-                         
-                            </div>
-                    
-                        ):false}
-                        </div>
-                    </div>
-                    <img className="tinylogo" style={{zIndex:2}} src={logo} alt=""/>
-                </div>
-            </div>
-        </div>
+  const showToast = (message, isSuccess = false) => {
+    clearTimeout(toastTimer.current);
+    settoast({ message, visible: true, isSuccess });
+    toastTimer.current = setTimeout(
+      () => settoast((t) => ({ ...t, visible: false })),
+      6000
     );
+  };
+
+  useEffect(() => () => {
+    clearTimeout(toastTimer.current);
+    clearInterval(countRef.current);
+  }, []);
+
+  /* ── otp countdown ── */
+  const startCounter = (secs = OTP_RESEND_SECS) => {
+    setcounter(secs);
+    clearInterval(countRef.current);
+    countRef.current = setInterval(() => {
+      setcounter((c) => {
+        if (c <= 1) { clearInterval(countRef.current); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+  };
+
+  /* ── session ── */
+  const populate = (result) => {
+    const userData = {
+      ...result.data.userData,
+      accessToken:  result.data.token,
+      refreshToken: result.data.refreshToken,
+    };
+    settemptoken(result.data.token);
+    persistUserInfo(userData);
+    syncWithExtension(userData);
+  };
+
+  const activateUser = () => {
+    try { setshows(false); } catch (err) { showToast(String(err)); }
+  };
+
+  /* ── register ── */
+  const authenticate = async () => {
+    setloading(true);
+    try {
+      const payload = { email: email.trim(), firstName: firstName.trim(), lastName: lastName.trim(), password };
+      if (referalCode.trim()) payload.referalCode = referalCode.trim();
+
+      const res    = await fetch(`${domain}/api/v1/auth/register`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
+      });
+      const result = await res.json();
+
+      if (result.status) {
+        populate(result);
+        setview(VIEW.OTP);
+      } else {
+        showToast(result.message + (result.details ?? ""));
+      }
+    } catch (err) {
+      showToast("Network error — please check your connection and try again.");
+    } finally {
+      setloading(false);
+    }
+  };
+
+  /* ── login ── */
+  const authlogin = async () => {
+    setloading(true);
+    try {
+      const res    = await fetch(`${domain}/api/v1/auth/login`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: loginEmail.trim(), password: loginPwd }),
+      });
+      const result = await res.json();
+
+      if (result.status) {
+        populate(result);
+        showToast("Welcome back! Signing you in…", true);
+        setTimeout(activateUser, 900);
+      } else {
+        showToast(result.message + (result.details ?? ""));
+      }
+    } catch (err) {
+      showToast("Network error — please check your connection and try again.");
+    } finally {
+      setloading(false);
+    }
+  };
+
+  /* ── google oauth ── */
+  const handleGoogleLogin = () => {
+    const redirectTo = encodeURIComponent(`${window.location.origin}/auth/callback`);
+    window.location.href = `${domain}/api/v1/auth/google?redirect_to=${redirectTo}`;
+  };
+
+  /* ── otp: send ── */
+  const sendOtp = async () => {
+    if (counter > 0) return;
+    setotpLoading(true);
+    try {
+      const res = await fetch(`${domain}/api/v1/send/sms/otp`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${temptoken}` },
+        body:    JSON.stringify({ msisdn }),
+      });
+      if (res.ok) {
+        showToast("OTP sent successfully!", true);
+        setskipotp(true);
+        startCounter();
+      } else {
+        showToast("Failed to send OTP — please try again.");
+      }
+    } catch {
+      showToast("Network error — please retry.");
+    } finally {
+      setotpLoading(false);
+    }
+  };
+
+  /* ── otp: verify ── */
+  const verifyOtp = async () => {
+    if (!otp || String(otp).length !== 6) {
+      showToast("Please enter the 6-digit OTP code.");
+      return;
+    }
+    setotpLoading(true);
+    try {
+      const res = await fetch(`${domain}/api/v1/verification`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${temptoken}` },
+        body:    JSON.stringify({ path: "msisdn", otp }),
+      });
+      if (res.ok) {
+        showToast("Phone verified! You're all set.", true);
+        setTimeout(activateUser, 900);
+      } else {
+        showToast("Verification failed — check the code and try again.");
+      }
+      setskipotp(true);
+    } catch {
+      showToast("Network error — please retry.");
+    } finally {
+      setotpLoading(false);
+    }
+  };
+
+  /* ── forgot password ── */
+  const sendPasswordReset = async () => {
+    if (!isValidEmail(forgotEmail)) {
+      showToast("Enter a valid email address.");
+      return;
+    }
+    setloading(true);
+    try {
+      // Always show the "sent" screen regardless of response to prevent email enumeration
+      await fetch(`${domain}/api/v1/auth/forgot-password`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      setview(VIEW.RESET_SENT);
+    } catch {
+      showToast("Network error — please try again.");
+    } finally {
+      setloading(false);
+    }
+  };
+
+  /* ── validation ── */
+  const validateSignup = () => {
+    if (!isValidEmail(email))           { showToast("Add a valid email e.g. you@example.com"); return; }
+    if (firstName.trim().length < 2)    { showToast("First name must be at least 2 characters"); return; }
+    if (lastName.trim().length < 2)     { showToast("Last name must be at least 2 characters"); return; }
+    if (!password)                      { showToast("Please enter a password"); return; }
+    if (/\s/.test(password))            { showToast("Password must not contain spaces"); return; }
+    if (password.length < 5)            { showToast("Password must be at least 5 characters"); return; }
+    if (confirm !== password)           { showToast("Passwords do not match"); return; }
+    if (!agreed)                        { showToast("Please accept the Terms & Privacy Policy to continue"); return; }
+    authenticate();
+  };
+
+  const validateLogin = () => {
+    if (!isValidEmail(loginEmail))      { showToast("Add a valid email e.g. you@example.com"); return; }
+    if (/\s/.test(loginEmail))          { showToast("Email must not contain spaces"); return; }
+    if (!loginPwd)                      { showToast("Please enter your password"); return; }
+    if (/\s/.test(loginPwd))            { showToast("Password must not contain spaces"); return; }
+    if (loginPwd.length < 5)            { showToast("Password must be at least 5 characters"); return; }
+    authlogin();
+  };
+
+  const validateOtpSend = () => {
+    if (msisdn.replace(/\D/g, "").length < 9) {
+      showToast("Add a valid phone number including country code (e.g. +233…)");
+      return;
+    }
+    sendOtp();
+  };
+
+  /* ── shared mini-components ── */
+  const GoogleBtn = () => (
+    <div
+      className="regbutton"
+      style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"center",
+               background:"#fff", color:"#111", fontWeight:600 }}
+      onClick={handleGoogleLogin}
+    >
+      <GoogleOutlined style={{ fontSize:"1.1rem", color:"#ea4335" }}/> Continue with Google
+    </div>
+  );
+
+  const OrDivider = () => (
+    <div className="noted" style={{ justifyContent:"center", opacity:.5, gap:8 }}>
+      <span style={{ flex:1, height:1, background:"rgba(255,255,255,.35)", display:"inline-block" }}/>
+      <small>or</small>
+      <span style={{ flex:1, height:1, background:"rgba(255,255,255,.35)", display:"inline-block" }}/>
+    </div>
+  );
+
+  const LegalFooter = ({ returnView }) => (
+    <div className="noted" style={{ fontSize:".72rem", opacity:.55, justifyContent:"center", flexWrap:"wrap", gap:4 }}>
+      By continuing you agree to our&nbsp;
+      <span style={{ textDecoration:"underline", cursor:"pointer" }}
+        onClick={() => { setlegalReturn(returnView); setview(VIEW.TERMS); }}>Terms</span>
+      &nbsp;&amp;&nbsp;
+      <span style={{ textDecoration:"underline", cursor:"pointer" }}
+        onClick={() => { setlegalReturn(returnView); setview(VIEW.POLICY); }}>Privacy Policy</span>
+    </div>
+  );
+
+  /* ── legal scroll box ── */
+  const LegalBody = ({ children }) => (
+    <div style={{
+      background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)",
+      borderRadius:10, padding:"1rem 1.2rem",
+      maxHeight:320, overflowY:"auto",
+      fontSize:".82rem", color:"rgba(255,255,255,0.82)", lineHeight:1.7,
+    }}>
+      {children}
+    </div>
+  );
+  const lH3 = { margin:"1rem 0 .3rem", fontSize:".87rem", fontWeight:600, color:"#fff" };
+  const lP  = { margin:"0 0 .25rem" };
+  const lA  = { color:"#aad4ff" };
+
+  /* ── legal shell ── */
+  const LegalShell = ({ title, subtitle, children }) => (
+    <div><div className="register">
+      {toast.visible && (
+        <div className="successmessage">
+          {toast.isSuccess ? `🟢 ${toast.message} 🥳` : `🔴 ${toast.message}`}
+        </div>
+      )}
+      <img className="regpic" src={PANEL_IMG} alt=""/>
+      <div className="regbox">
+        <div className="racoonbox">
+          <img className="racoondp" src={racoon_learn} alt=""/>
+          <div className="racoonintro">
+            <div className="rbackdrop" style={{ zIndex:2 }}></div>
+            <div className="wmessage">{title}</div>
+            <div className="regnote">{subtitle}</div>
+          </div>
+        </div>
+        <div className="half">
+          <div className="regform">
+            <div className="mbox" style={{ display:"flex", flexDirection:"column", gap:".75rem" }}>
+              {children}
+              <div className="regbutton" onClick={() => setview(legalReturn)}>
+                <ArrowLeftOutlined className="micon"/> Got it — go back
+              </div>
+            </div>
+          </div>
+        </div>
+        <img className="tinylogo" style={{ zIndex:2 }} src={logo} alt=""/>
+      </div>
+    </div></div>
+  );
+
+  /* ══════════════════════════════════════════════════════════════════
+     PRIVACY POLICY
+  ══════════════════════════════════════════════════════════════════ */
+  if (view === VIEW.POLICY) return (
+    <LegalShell
+      title="Privacy Policy"
+      subtitle={"Last updated " + new Date().toLocaleDateString("en-GB", { year:"numeric", month:"long", day:"numeric" })}
+    >
+      <LegalBody>
+        <h3 style={lH3}>1. Information We Collect</h3>
+        <p style={lP}>We collect your name, email, phone number, and password when you register, plus usage data (pages visited, features used) to improve your experience.</p>
+        <h3 style={lH3}>2. How We Use Your Data</h3>
+        <p style={lP}>Your data operates and personalises UELearn, delivers OTP codes, and improves the platform. We do not sell your personal data to third parties.</p>
+        <h3 style={lH3}>3. Data Sharing</h3>
+        <p style={lP}>We share data only with providers who help us run UELearn (cloud infrastructure, SMS delivery). All are bound by data processing agreements. We may disclose data where required by law.</p>
+        <h3 style={lH3}>4. Cookies & Storage</h3>
+        <p style={lP}>We use session tokens stored in <code style={{ background:"rgba(255,255,255,.15)", padding:"0 4px", borderRadius:3 }}>localStorage</code> to keep you signed in. We do not use third-party advertising trackers.</p>
+        <h3 style={lH3}>5. Data Retention</h3>
+        <p style={lP}>Account data is kept while your account is active. You may request deletion at any time by emailing us.</p>
+        <h3 style={lH3}>6. Your Rights</h3>
+        <p style={lP}>You may access, correct, or delete your data. Contact <a href="mailto:privacy@uelearn.app" style={lA}>privacy@uelearn.app</a>.</p>
+        <h3 style={lH3}>7. Security</h3>
+        <p style={lP}>We use industry-standard encryption and access controls. Use a strong, unique password and keep it private.</p>
+        <h3 style={lH3}>8. Changes</h3>
+        <p style={lP}>Significant changes will be notified via email or in-app notice. Continued use constitutes acceptance of the updated policy.</p>
+        <h3 style={lH3}>9. Contact</h3>
+        <p style={lP}><a href="mailto:privacy@uelearn.app" style={lA}>privacy@uelearn.app</a></p>
+      </LegalBody>
+    </LegalShell>
+  );
+
+  /* ══════════════════════════════════════════════════════════════════
+     TERMS OF SERVICE
+  ══════════════════════════════════════════════════════════════════ */
+  if (view === VIEW.TERMS) return (
+    <LegalShell
+      title="Terms of Service"
+      subtitle={"Last updated " + new Date().toLocaleDateString("en-GB", { year:"numeric", month:"long", day:"numeric" })}
+    >
+      <LegalBody>
+        <h3 style={lH3}>1. Acceptance</h3>
+        <p style={lP}>By creating a UELearn account you agree to these Terms. If you disagree, do not use the platform.</p>
+        <h3 style={lH3}>2. Eligibility</h3>
+        <p style={lP}>You must be at least 13 years old. If under 18, you confirm you have parental or guardian consent.</p>
+        <h3 style={lH3}>3. Account Responsibility</h3>
+        <p style={lP}>You are responsible for keeping your credentials confidential and for all activity under your account. Notify us immediately of any unauthorised access.</p>
+        <h3 style={lH3}>4. Acceptable Use</h3>
+        <p style={lP}>You agree not to share content in ways that violate academic integrity, reverse-engineer the platform, impersonate others, or upload unlawful material.</p>
+        <h3 style={lH3}>5. Intellectual Property</h3>
+        <p style={lP}>All content, design, and software on UELearn is owned by or licensed to us. No reproduction or distribution without written permission.</p>
+        <h3 style={lH3}>6. Subscriptions & Payments</h3>
+        <p style={lP}>Paid features are billed in advance and are non-refundable except where required by law. Pricing changes come with 30 days' notice.</p>
+        <h3 style={lH3}>7. Termination</h3>
+        <p style={lP}>We may suspend or terminate accounts that violate these Terms. You may delete your account from settings at any time.</p>
+        <h3 style={lH3}>8. Disclaimer</h3>
+        <p style={lP}>UELearn is provided "as is." We do not guarantee specific academic outcomes. Results depend on individual effort.</p>
+        <h3 style={lH3}>9. Limitation of Liability</h3>
+        <p style={lP}>Our liability is limited to the amount you paid us in the 12 months preceding any claim, to the fullest extent permitted by law.</p>
+        <h3 style={lH3}>10. Governing Law</h3>
+        <p style={lP}>These Terms are governed by the laws of Ghana. Disputes shall be resolved in Accra, Ghana.</p>
+        <h3 style={lH3}>11. Contact</h3>
+        <p style={lP}><a href="mailto:legal@uelearn.app" style={lA}>legal@uelearn.app</a></p>
+      </LegalBody>
+    </LegalShell>
+  );
+
+  /* ══════════════════════════════════════════════════════════════════
+     MAIN RENDER
+  ══════════════════════════════════════════════════════════════════ */
+  return (
+    <div>
+      <div className="register">
+        {/* Toast — rendered once, driven by state (not a DOM-mutation side-effect) */}
+        {toast.visible && (
+          <div className="successmessage">
+            {toast.isSuccess ? `🟢 ${toast.message} 🥳🥳🥳` : `🔴 ${toast.message}`}
+          </div>
+        )}
+
+        {/* Single panel image — duplicate was a bug */}
+        <img className="regpic" src={PANEL_IMG} alt=""/>
+
+        <div className="regbox">
+          <div className="racoonbox">
+            <img className="racoondp" src={racoon_learn} alt=""/>
+            <div className="racoonintro">
+              <div className="rbackdrop" style={{ zIndex:2 }}></div>
+              <div className="wmessage">Welcome to UELearn</div>
+              <div className="regnote">study with aura !</div>
+            </div>
+          </div>
+
+          <div className="half">
+            <div className="picked">
+              <img src={PANEL_IMG} className="brown" alt=""/>
+              <img src={PANEL_IMG} className="brown mask" alt=""/>
+            </div>
+          </div>
+
+          <div className="half">
+            <div className="regform">
+
+              {/* ══ FORGOT PASSWORD ══ */}
+              {view === VIEW.FORGOT && (
+                <div className="mbox">
+                  <div className="noted" style={{ cursor:"pointer" }} onClick={() => setview(VIEW.LOGIN)}>
+                    <ArrowLeftOutlined className="micon"/> Back to sign in
+                  </div>
+                  <div className="noted" style={{ flexDirection:"column", alignItems:"flex-start", gap:4 }}>
+                    <strong style={{ color:"#fff", fontSize:"1rem" }}>Reset your password</strong>
+                    <span>Enter your registered email — we'll send a reset link right away.</span>
+                  </div>
+                  <GoogleBtn/>
+                  <OrDivider/>
+                  <div className="inputform">
+                    <MailOutlined className="micon"/>
+                    <input
+                      onChange={(e) => setforgotEmail(e.target.value)}
+                      type="email" placeholder="EMAIL" autoComplete="email" className="impbox"
+                    />
+                  </div>
+                  <div className="regbutton" onClick={sendPasswordReset}>
+                    {loading ? "Sending…" : "Send reset link"}
+                  </div>
+                </div>
+              )}
+
+              {/* ══ RESET SENT ══ */}
+              {view === VIEW.RESET_SENT && (
+                <div className="mbox">
+                  <div style={{ textAlign:"center", fontSize:"2.5rem", lineHeight:1 }}>✉️</div>
+                  <div className="noted" style={{ flexDirection:"column", alignItems:"center", gap:6, textAlign:"center" }}>
+                    <strong style={{ color:"#fff", fontSize:"1rem" }}>Check your inbox</strong>
+                    <span>
+                      If <strong>{forgotEmail}</strong> is linked to an account, a reset link is on its way.
+                      Also check your spam folder.
+                    </span>
+                  </div>
+                  <div className="regbutton" onClick={() => setview(VIEW.LOGIN)}>
+                    Back to sign in
+                  </div>
+                </div>
+              )}
+
+              {/* ══ LOGIN ══ */}
+              {view === VIEW.LOGIN && (
+                <div className="mbox">
+                  <GoogleBtn/>
+                  <OrDivider/>
+
+                  <div className="inputform">
+                    <MailOutlined className="micon"/>
+                    <input
+                      onChange={(e) => setloginEmail(e.target.value)}
+                      type="email" placeholder="EMAIL" autoComplete="email" className="impbox"
+                    />
+                  </div>
+                  <div className="inputform">
+                    {showPwd
+                      ? <EyeInvisibleOutlined className="micon" style={{ cursor:"pointer" }} onClick={() => setshowPwd(false)}/>
+                      : <EyeOutlined          className="micon" style={{ cursor:"pointer" }} onClick={() => setshowPwd(true)}/>}
+                    <input
+                      onChange={(e) => setloginPwd(e.target.value)}
+                      type={showPwd ? "text" : "password"}
+                      placeholder="PASSWORD" autoComplete="current-password" className="impbox"
+                    />
+                  </div>
+
+                  <div className="noted" style={{ justifyContent:"flex-end" }}>
+                    <span
+                      style={{ cursor:"pointer", textDecoration:"underline", opacity:.75, fontSize:".8rem" }}
+                      onClick={() => setview(VIEW.FORGOT)}
+                    >
+                      Forgot password?
+                    </span>
+                  </div>
+
+                  <div className="regbutton" onClick={validateLogin}>
+                    {loading ? "Signing in…" : "Sign in"}
+                  </div>
+                  <div className="noted">
+                    <InfoCircleFilled className="micon"/> Don't have an account?
+                  </div>
+                  <div className="regbutton" style={{ background:"black", color:"white" }}
+                    onClick={() => setview(VIEW.SIGNUP)}>
+                    Sign Up Instead?
+                  </div>
+                  <LegalFooter returnView={VIEW.LOGIN}/>
+                </div>
+              )}
+
+              {/* ══ SIGN UP ══ */}
+              {view === VIEW.SIGNUP && (
+                <div className="mbox">
+                  <GoogleBtn/>
+                  <OrDivider/>
+
+                  <div className="inputform">
+                    <MailOutlined className="micon"/>
+                    <input
+                      onChange={(e) => setemail(e.target.value)}
+                      type="email" placeholder="EMAIL" autoComplete="email" className="impbox"
+                    />
+                  </div>
+                  <div className="inputform">
+                    <UserAddOutlined className="micon"/>
+                    <input
+                      onChange={(e) => setfirstName(e.target.value)}
+                      type="text" placeholder="FIRST NAME" autoComplete="given-name" className="impbox"
+                    />
+                  </div>
+                  <div className="inputform">
+                    <UserAddOutlined className="micon"/>
+                    <input
+                      onChange={(e) => setlastName(e.target.value)}
+                      type="text" placeholder="LAST NAME" autoComplete="family-name" className="impbox"
+                    />
+                  </div>
+                  <div className="inputform">
+                    {showPwd
+                      ? <EyeInvisibleOutlined className="micon" style={{ cursor:"pointer" }} onClick={() => setshowPwd(false)}/>
+                      : <EyeOutlined          className="micon" style={{ cursor:"pointer" }} onClick={() => setshowPwd(true)}/>}
+                    <input
+                      onChange={(e) => setpassword(e.target.value)}
+                      type={showPwd ? "text" : "password"}
+                      placeholder="PASSWORD" autoComplete="new-password" className="impbox"
+                    />
+                  </div>
+                  <div className="inputform">
+                    {showPwd2
+                      ? <EyeInvisibleOutlined className="micon" style={{ cursor:"pointer" }} onClick={() => setshowPwd2(false)}/>
+                      : <EyeOutlined          className="micon" style={{ cursor:"pointer" }} onClick={() => setshowPwd2(true)}/>}
+                    <input
+                      onChange={(e) => setconfirm(e.target.value)}
+                      type={showPwd2 ? "text" : "password"}
+                      placeholder="CONFIRM PASSWORD" autoComplete="new-password" className="impbox"
+                    />
+                  </div>
+
+                  {/* referral */}
+                  {hasref ? (
+                    <>
+                      <div className="regbutton" onClick={() => sethasref(false)}>
+                        Remove referral section
+                      </div>
+                      <div className="inputform">
+                        <SafetyCertificateOutlined className="micon"/>
+                        <input className="impbox" type="text"
+                          onChange={(e) => setreferalCode(e.target.value)} placeholder="REFERRAL CODE"/>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="noted">
+                        <InfoCircleFilled className="micon"/> Optional: Add referral code
+                      </div>
+                      <div className="regbutton" onClick={() => sethasref(true)}>
+                        Add referral code
+                      </div>
+                    </>
+                  )}
+
+                  {/* terms checkbox */}
+                  <label className="noted" style={{ cursor:"pointer", userSelect:"none", gap:8, alignItems:"flex-start" }}>
+                    <input
+                      type="checkbox" checked={agreed}
+                      onChange={(e) => setagreed(e.target.checked)}
+                      style={{ marginTop:3, accentColor:"#fff", cursor:"pointer", flexShrink:0 }}
+                    />
+                    <span style={{ fontSize:".78rem", lineHeight:1.6 }}>
+                      I agree to the&nbsp;
+                      <span style={{ textDecoration:"underline", cursor:"pointer" }}
+                        onClick={(e) => { e.preventDefault(); setlegalReturn(VIEW.SIGNUP); setview(VIEW.TERMS); }}>
+                        Terms of Service
+                      </span>
+                      &nbsp;and&nbsp;
+                      <span style={{ textDecoration:"underline", cursor:"pointer" }}
+                        onClick={(e) => { e.preventDefault(); setlegalReturn(VIEW.SIGNUP); setview(VIEW.POLICY); }}>
+                        Privacy Policy
+                      </span>
+                    </span>
+                  </label>
+
+                  <div className="otpverbox">
+                    <div className="regbutton" onClick={validateSignup}>
+                      {loading ? "Creating..." : "Sign Up"}
+                    </div>
+                    <div className="regbutton" style={{ filter:"invert(1)" }} onClick={() => setview(VIEW.LOGIN)}>
+                      Login Instead?
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ══ OTP VERIFICATION ══ */}
+              {view === VIEW.OTP && (
+                <div className="tootp">
+                  <div className="inputform">
+                    <PhoneOutlined/>
+                    <input
+                      onChange={(e) => setmsisdn(e.target.value)}
+                      type="tel" placeholder="PHONE (e.g. +233XXXXXXXXX)" autoComplete="tel" className="impbox"
+                    />
+                  </div>
+                  <div className="noted">
+                    <InfoCircleFilled className="micon"/> Click Verify to receive your OTP code
+                  </div>
+                  <div className="otpverbox">
+                    <div className="otpver" onClick={validateOtpSend}>
+                      <CheckCircleOutlined className="micon" style={{ filter:"invert(1)" }}/>
+                      {otpLoading ? "Sending…" : "Verify"}
+                    </div>
+                    <div className="resend">
+                      <ClockCircleOutlined className="micon"/>
+                      <span className="count">
+                        {counter > 0 ? `Resend in ${counter}s` : "Ready to resend"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="inputform">
+                    <MessageOutlined/>
+                    <input
+                      onChange={(e) => setotp(e.target.value)}
+                      type="number" placeholder="OTP CODE HERE (6 DIGIT)" className="impbox"
+                    />
+                  </div>
+                  <div className="regbutton" onClick={verifyOtp}>
+                    {otpLoading ? "Verifying…" : "Proceed"}
+                  </div>
+                  {skipotp && (
+                    <>
+                      <div className="noted">
+                        <InfoCircleFilled className="micon"/> Didn't receive OTP? You can skip and verify later
+                      </div>
+                      <div className="skipbtn" onClick={activateUser}>
+                        <i className="arrow-right"></i> {`Skip >`}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+            </div>
+          </div>
+
+          <img className="tinylogo" style={{ zIndex:2 }} src={logo} alt=""/>
+        </div>
+      </div>
+    </div>
+  );
 }
