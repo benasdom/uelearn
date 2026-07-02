@@ -4,21 +4,20 @@
     <meta charset="utf-8" />
     <title>uelearn - Redirecting...</title>
     <script>
-      // Only run on GitHub Pages (github.io domain)
+      // Single Page Apps for GitHub Pages
+      // Preserves the original path so React Router can handle it
       (function() {
-        if (window.location.hostname.includes('github.io')) {
-          var path = window.location.pathname;
-          var search = window.location.search;
-          var hash = window.location.hash;
-          
-          // Preserve the full original URL
-          var originalUrl = path + search + hash;
-          
-          // Redirect to index.html with the path as a query parameter
-          window.location.replace(
-            '/uelearn/?redirect=' + encodeURIComponent(originalUrl)
-          );
-        }
+        var path = window.location.pathname;
+        var search = window.location.search;
+        var hash = window.location.hash;
+        
+        // Preserve the full original URL
+        var originalUrl = path + search + hash;
+        
+        // Redirect to index.html with the path as a query parameter
+        window.location.replace(
+          '/uelearn/?redirect=' + encodeURIComponent(originalUrl)
+        );
       })();
     </script>
   </head>
