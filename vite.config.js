@@ -19,7 +19,7 @@ export default defineConfig({
       }
     }
   ],
-  base: "/uelearn/",
+  base: "https://uelearn.unityelites.com/",
     resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
