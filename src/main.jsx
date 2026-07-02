@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter as Router, Route,Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import App from './App.jsx'
 import './index.css'
 import About from './About.jsx';
@@ -10,12 +10,16 @@ import Payment from './menu/Payment.jsx';
 import './mobile.css'
 import './print.css'
 
+// Detect if running on GitHub Pages subdomain
+const isGitHubPages = window.location.hostname.includes('github.io');
+const basename = isGitHubPages ? '/uelearn/' : '/';
+
 const MainRouter = () => {
   const [credits, setCredits] = useState(0);
   
   return (
-    <Router basename="/uelearn">
-    <Routes>
+    <Router basename={basename}>
+      <Routes>
         <Route path="/" element={<App />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/about" element={<About />} />
