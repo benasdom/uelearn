@@ -19,7 +19,7 @@ export default defineConfig({
       }
     }
   ],
-  base: "/",
+  base: "/uelearn/",
     resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
