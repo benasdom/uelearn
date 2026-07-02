@@ -14,7 +14,7 @@ const MainRouter = () => {
   const [credits, setCredits] = useState(0);
   
   return (
-    <Router basename="/uelearn">
+    <Router >
     <Routes>
         <Route path="/" element={<App />} />
         <Route path="/contact" element={<Contact />} />
