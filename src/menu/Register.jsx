@@ -37,6 +37,11 @@ const VIEW = {
 
 const OTP_RESEND_SECS = 60;
 
+// Vite exposes env vars prefixed with VITE_ on import.meta.env
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GSI_SCRIPT_SRC   = "https://accounts.google.com/gsi/client";
+const GSI_SCRIPT_ID    = "google-identity-services";
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
@@ -92,6 +97,9 @@ export default function Register({ setshows }) {
   const [toast,      settoast]      = useState({ message: "", visible: false, isSuccess: false });
   const toastTimer = useRef(null);
   const countRef   = useRef(null);
+
+  /* ── google identity services ── */
+  const googleHiddenBtnRef = useRef(null); // DOM node Google renders its real button into (kept visually hidden)
 
   const showToast = (message, isSuccess = false) => {
     clearTimeout(toastTimer.current);
@@ -187,10 +195,92 @@ export default function Register({ setshows }) {
     }
   };
 
-  /* ── google oauth ── */
+  /* ── google oauth (Google Identity Services, client-side) ── */
+
+  // Exchanges the Google ID token for our own session, same contract as email/password login.
+  const handleGoogleCredential = async (response) => {
+    if (!response?.credential) {
+      showToast("Google sign-in didn't return a credential — please try again.");
+      return;
+    }
+    setloading(true);
+    try {
+      const res = await fetch(`${domain}/api/v1/auth/google`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ id_token: response.credential }),
+      });
+      const result = await res.json();
+
+      if (result.status) {
+        populate(result);
+        showToast("Welcome! Signing you in…", true);
+        setTimeout(activateUser, 900);
+      } else {
+        showToast(result.message + (result.details ?? ""));
+      }
+    } catch (err) {
+      showToast("Network error — please check your connection and try again.");
+    } finally {
+      setloading(false);
+    }
+  };
+
+  // Loads the GSI script once, initializes it with our client ID, and renders Google's
+  // real button into a visually-hidden node. Our styled "Continue with Google" button
+  // forwards its click to that hidden node — this keeps our own UI while staying
+  // compliant with Google's rendering requirements (FedCM).
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) {
+      console.warn("VITE_GOOGLE_CLIENT_ID is not set — Google sign-in is disabled.");
+      return;
+    }
+
+    const initGoogle = () => {
+      if (!window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback:  handleGoogleCredential,
+        ux_mode:   "popup",
+      });
+      if (googleHiddenBtnRef.current) {
+        window.google.accounts.id.renderButton(googleHiddenBtnRef.current, {
+          type:  "standard",
+          theme: "outline",
+          size:  "large",
+          width: 320,
+        });
+      }
+    };
+
+    const existing = document.getElementById(GSI_SCRIPT_ID);
+    if (existing) {
+      if (window.google?.accounts?.id) initGoogle();
+      else existing.addEventListener("load", initGoogle);
+      return;
+    }
+
+    const script  = document.createElement("script");
+    script.src    = GSI_SCRIPT_SRC;
+    script.id     = GSI_SCRIPT_ID;
+    script.async  = true;
+    script.defer  = true;
+    script.onload = initGoogle;
+    document.body.appendChild(script);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleGoogleLogin = () => {
-    const redirectTo = encodeURIComponent(`${window.location.origin}/auth/callback`);
-    window.location.href = `${domain}/api/v1/auth/google?redirect_to=${redirectTo}`;
+    if (!GOOGLE_CLIENT_ID) {
+      showToast("Google sign-in isn't configured yet.");
+      return;
+    }
+    // Forward the click to Google's real (hidden) button rather than calling
+    // google.accounts.id.prompt() directly — browsers increasingly block the
+    // One Tap prompt, but a genuine click on Google's own button always works.
+    const realBtn = googleHiddenBtnRef.current?.querySelector('div[role="button"]');
+    if (realBtn) realBtn.click();
+    else showToast("Google sign-in is still loading — please try again in a moment.");
   };
 
   /* ── otp: send ── */
@@ -453,6 +543,12 @@ export default function Register({ setshows }) {
             {toast.isSuccess ? `🟢 ${toast.message} 🥳🥳🥳` : `🔴 ${toast.message}`}
           </div>
         )}
+
+        {/* Google's real button renders here, visually hidden. Our styled button forwards clicks to it. */}
+        <div
+          ref={googleHiddenBtnRef}
+          style={{ position:"absolute", width:1, height:1, overflow:"hidden", opacity:0, pointerEvents:"none" }}
+        />
 
         {/* Single panel image — duplicate was a bug */}
         <img className="regpic" src={PANEL_IMG} alt=""/>
