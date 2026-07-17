@@ -8,16 +8,6 @@ import { resolve } from "path";
 export default defineConfig({
   plugins: [
     react(),
-        {
-      name: 'copy-404',
-      closeBundle() {
-        // Copy 404.html to dist folder after build
-        copyFileSync(
-          resolve(__dirname, 'public/404.html'),
-          resolve(__dirname, 'dist/404.html')
-        );
-      }
-    }
   ],
   base: "./",
     resolve: {
