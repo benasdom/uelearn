@@ -205,7 +205,7 @@ export default function Register({ setshows }) {
     }
     setloading(true);
     try {
-      const res = await fetch(`${domain}/api/v1/auth/google`, {
+      const res = await fetch(`${domain}/api/v1/auth/google/register`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ id_token: response.credential }),
