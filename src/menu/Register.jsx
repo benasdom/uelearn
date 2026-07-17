@@ -101,6 +101,7 @@ export default function Register({ setshows }) {
   /* ── google identity services ── */
   const [gsiReady, setgsiReady] = useState(false); // true once google.accounts.id is initialized
   const googleContainerNode = useRef(null);        // the currently-mounted overlay node Google renders into
+  const googleFlowView      = useRef(VIEW.LOGIN);  // which view's button was rendered/clicked (login vs signup vs forgot)
 
   const showToast = (message, isSuccess = false) => {
     clearTimeout(toastTimer.current);
@@ -198,19 +199,30 @@ export default function Register({ setshows }) {
 
   /* ── google oauth (Google Identity Services, client-side) ── */
 
-  // Exchanges the Google ID token with the backend for our own session,
-  // same contract as email/password login (backend verifies the token
-  // against Google, finds-or-creates the user, returns our session tokens).
-  // Routes to phone verification (VIEW.OTP) afterward, same as authenticate() —
-  // a Google sign-up still needs to verify a phone number before the modal closes.
+  // Exchanges the Google ID token with the backend for our own session.
+  // Routes to a different endpoint depending on which view the button was
+  // clicked from:
+  //   - LOGIN / FORGOT  -> /api/v1/auth/login   (existing user only;
+  //                        backend should NOT auto-create an account here)
+  //   - SIGNUP          -> /api/v1/auth/google/register (find-or-create,
+  //                        same contract as before)
+  // A login-via-Google skips OTP entirely (returning, already-verified user),
+  // same as authlogin(). A signup-via-Google still needs phone verification,
+  // same as authenticate().
   const handleGoogleCredential = async (response) => {
     if (!response?.credential) {
       showToast("Google sign-in didn't return a credential — please try again.");
       return;
     }
+
+    const isLogin  = googleFlowView.current !== VIEW.SIGNUP;
+    const endpoint = isLogin
+      ? `${domain}/api/v1/auth/login`
+      : `${domain}/api/v1/auth/google/register`;
+
     setloading(true);
     try {
-      const res = await fetch(`${domain}/api/v1/auth/google/register`, {
+      const res = await fetch(endpoint, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ id_token: response.credential }),
@@ -219,7 +231,12 @@ export default function Register({ setshows }) {
 
       if (result.status) {
         populate(result);
-        setview(VIEW.OTP);
+        if (isLogin) {
+          showToast("Welcome back! Signing you in…", true);
+          setTimeout(activateUser, 900);
+        } else {
+          setview(VIEW.OTP);
+        }
       } else {
         showToast(result.message + (result.details ?? ""));
       }
@@ -275,9 +292,12 @@ export default function Register({ setshows }) {
 
   // Renders Google's real button into the currently-mounted overlay container.
   // Re-runs whenever `view` changes, because the container is a fresh DOM node
-  // each time the Login/Signup/Forgot section mounts.
+  // each time the Login/Signup/Forgot section mounts. Also records which view
+  // this particular button belongs to, so handleGoogleCredential knows whether
+  // the click came from a login-intent or signup-intent screen.
   useEffect(() => {
     if (!gsiReady || !googleContainerNode.current || !window.google?.accounts?.id) return;
+    googleFlowView.current = view;
     googleContainerNode.current.innerHTML = ""; // avoid stacking duplicate iframes on re-render
     window.google.accounts.id.renderButton(googleContainerNode.current, {
       type:  "standard",
