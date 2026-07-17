@@ -14,7 +14,7 @@ import racoon from '/imgs/racoon_job.jpg'
 import Overview from './menu/Overview'
 import LoadComponent from './Loadcomponent'
 import ModelComponent from './ModelComponent'
-import { domain, fetchWithAuth, leave, LocalApiPath, getUserState } from './menu/authfetch'
+import { domain, fetchWithAuth, logout, LocalApiPath, getUserState } from './menu/authfetch'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -95,6 +95,11 @@ const SearchList = ({
   // Controls whether the side-menu panel is open
   const [menuOpen,     setmenuOpen]     = useState(false)
 
+  const logoutUser=()=>{
+    if(confirm("Confirm to Leave")){
+      logout();
+    }
+  }
   // ── open model selector ──
   const fix = (res, name) => {
     setcourseName(name);
@@ -289,7 +294,7 @@ const SearchList = ({
                   ))}
                 </div>
 
-                <div className="menuitems logout" style={{ padding: 20 }} onClick={leave}>
+                <div className="menuitems logout" style={{ padding: 20 }} onClick={logoutUser}>
                   <div className="inmenu"><LogoutOutlined className="micon" />Logout</div>
                 </div>
               </div>

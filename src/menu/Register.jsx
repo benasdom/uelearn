@@ -99,7 +99,8 @@ export default function Register({ setshows }) {
   const countRef   = useRef(null);
 
   /* ── google identity services ── */
-  const googleHiddenBtnRef = useRef(null); // DOM node Google renders its real button into (kept visually hidden)
+  const [gsiReady, setgsiReady] = useState(false); // true once google.accounts.id is initialized
+  const googleContainerNode = useRef(null);        // the currently-mounted overlay node Google renders into
 
   const showToast = (message, isSuccess = false) => {
     clearTimeout(toastTimer.current);
@@ -197,7 +198,11 @@ export default function Register({ setshows }) {
 
   /* ── google oauth (Google Identity Services, client-side) ── */
 
-  // Exchanges the Google ID token for our own session, same contract as email/password login.
+  // Exchanges the Google ID token with the backend for our own session,
+  // same contract as email/password login (backend verifies the token
+  // against Google, finds-or-creates the user, returns our session tokens).
+  // Routes to phone verification (VIEW.OTP) afterward, same as authenticate() —
+  // a Google sign-up still needs to verify a phone number before the modal closes.
   const handleGoogleCredential = async (response) => {
     if (!response?.credential) {
       showToast("Google sign-in didn't return a credential — please try again.");
@@ -214,8 +219,7 @@ export default function Register({ setshows }) {
 
       if (result.status) {
         populate(result);
-        showToast("Welcome! Signing you in…", true);
-        setTimeout(activateUser, 900);
+        setview(VIEW.OTP);
       } else {
         showToast(result.message + (result.details ?? ""));
       }
@@ -226,10 +230,12 @@ export default function Register({ setshows }) {
     }
   };
 
-  // Loads the GSI script once, initializes it with our client ID, and renders Google's
-  // real button into a visually-hidden node. Our styled "Continue with Google" button
-  // forwards its click to that hidden node — this keeps our own UI while staying
-  // compliant with Google's rendering requirements (FedCM).
+  // Loads the GSI script once and initializes it with our client ID.
+  // Does NOT render the button here — Google's rendered button lives inside a
+  // cross-origin iframe, so it must be rendered directly into the actual node
+  // the person will click (you cannot query into it or forward a click to it
+  // from outside — that's a browser security boundary, not a bug). Rendering
+  // happens in the effect below, keyed to whichever view is currently mounted.
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
       console.warn("VITE_GOOGLE_CLIENT_ID is not set — Google sign-in is disabled.");
@@ -243,14 +249,7 @@ export default function Register({ setshows }) {
         callback:  handleGoogleCredential,
         ux_mode:   "popup",
       });
-      if (googleHiddenBtnRef.current) {
-        window.google.accounts.id.renderButton(googleHiddenBtnRef.current, {
-          type:  "standard",
-          theme: "outline",
-          size:  "large",
-          width: 320,
-        });
-      }
+      setgsiReady(true);
     };
 
     const existing = document.getElementById(GSI_SCRIPT_ID);
@@ -266,22 +265,27 @@ export default function Register({ setshows }) {
     script.async  = true;
     script.defer  = true;
     script.onload = initGoogle;
+    script.onerror = () => console.warn(
+      "Google Identity script failed to load — likely blocked by an ad blocker " +
+      "or browser extension (common on desktop, rarer on mobile)."
+    );
     document.body.appendChild(script);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleGoogleLogin = () => {
-    if (!GOOGLE_CLIENT_ID) {
-      showToast("Google sign-in isn't configured yet.");
-      return;
-    }
-    // Forward the click to Google's real (hidden) button rather than calling
-    // google.accounts.id.prompt() directly — browsers increasingly block the
-    // One Tap prompt, but a genuine click on Google's own button always works.
-    const realBtn = googleHiddenBtnRef.current?.querySelector('div[role="button"]');
-    if (realBtn) realBtn.click();
-    else showToast("Google sign-in is still loading — please try again in a moment.");
-  };
+  // Renders Google's real button into the currently-mounted overlay container.
+  // Re-runs whenever `view` changes, because the container is a fresh DOM node
+  // each time the Login/Signup/Forgot section mounts.
+  useEffect(() => {
+    if (!gsiReady || !googleContainerNode.current || !window.google?.accounts?.id) return;
+    googleContainerNode.current.innerHTML = ""; // avoid stacking duplicate iframes on re-render
+    window.google.accounts.id.renderButton(googleContainerNode.current, {
+      type:  "standard",
+      theme: "outline",
+      size:  "large",
+      width: 320,
+    });
+  }, [gsiReady, view]);
 
   /* ── otp: send ── */
   const sendOtp = async () => {
@@ -388,13 +392,26 @@ export default function Register({ setshows }) {
 
   /* ── shared mini-components ── */
   const GoogleBtn = () => (
-    <div
-      className="regbutton"
-      style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"center",
-               background:"#fff", color:"#111", fontWeight:600 }}
-      onClick={handleGoogleLogin}
-    >
-      <GoogleOutlined style={{ fontSize:"1.1rem", color:"#ea4335" }}/> Continue with Google
+    <div style={{ position:"relative" }}>
+      <div
+        className="regbutton"
+        style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"center",
+                 background:"#fff", color:"#111", fontWeight:600 }}
+      >
+        <GoogleOutlined style={{ fontSize:"1.1rem", color:"#ea4335" }}/> Continue with Google
+      </div>
+      {/* Google's real button renders here — genuinely present and clickable,
+          just invisible, positioned exactly over the styled button above so
+          clicks land on it natively. (You can't relay a click into this from
+          outside — it's a cross-origin iframe — so it has to physically be here.) */}
+      <div
+        ref={(node) => { googleContainerNode.current = node; }}
+        style={{
+          position:"absolute", inset:0,
+          opacity:0, overflow:"hidden",
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}
+      />
     </div>
   );
 
@@ -543,12 +560,6 @@ export default function Register({ setshows }) {
             {toast.isSuccess ? `🟢 ${toast.message} 🥳🥳🥳` : `🔴 ${toast.message}`}
           </div>
         )}
-
-        {/* Google's real button renders here, visually hidden. Our styled button forwards clicks to it. */}
-        <div
-          ref={googleHiddenBtnRef}
-          style={{ position:"absolute", width:1, height:1, overflow:"hidden", opacity:0, pointerEvents:"none" }}
-        />
 
         {/* Single panel image — duplicate was a bug */}
         <img className="regpic" src={PANEL_IMG} alt=""/>

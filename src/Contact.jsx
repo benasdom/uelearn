@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import spinner from '/imgs/loader.svg';
 import mainlogo from '/imgs/titled.png';
 import { MoneyCollectOutlined, SmileOutlined, TeamOutlined } from '@ant-design/icons';
+import { fetchWithAuth, domain, AuthError } from './menu/authfetch'; // adjust this path if authfetch.js lives elsewhere relative to this file
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Outfit:wght@300;400;500&display=swap');
@@ -318,19 +319,28 @@ export default function Contact() {
       return;
     }
     setSpin(true);
-    const token = '6715619579:AAEVuhwuW1Mwj09YQU3nyDDICHAZb0iiLQo';
-    const chatId = '815965867';
-    const text = `Name: ${fields.name}\nEmail: ${fields.email}\nPhone: ${fields.phone}\nMessage: ${fields.message}`;
     try {
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      // Sends the form through our own backend, which relays it to Telegram —
+      // requires the visitor to be signed in (fetchWithAuth attaches their
+      // access token and refreshes it automatically on a 401).
+      await fetchWithAuth(`${domain}/api/v1/test-telegram/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text }),
+        body: JSON.stringify({
+          name:    fields.name,
+          email:   fields.email,
+          phone:   fields.phone,
+          message: fields.message,
+        }),
       });
       showToast('Message sent successfully!');
       setFields({ name: '', email: '', phone: '', message: '' });
-    } catch {
-      showToast('Failed to send. Please try again.');
+    } catch (err) {
+      if (err instanceof AuthError) {
+        showToast('Please sign in to send a message.');
+      } else {
+        showToast('Failed to send. Please try again.');
+      }
     }
     setSpin(false);
   };

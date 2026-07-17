@@ -41,11 +41,42 @@ export class AuthError extends Error {
 
 // Clears the session from storage. Does NOT reload the page — the React tree
 // handles the "logged out" state by watching for AuthError and showing the modal.
+//
+// This is the "silent" clear — used internally when we already know the
+// session is dead (e.g. the refresh token itself was rejected in
+// refreshTokens() below). There's no backend call here on purpose: if the
+// refresh token was already invalid, there's nothing left to invalidate.
 export function leave() {
   try {
     localStorage.removeItem("userInfo");
   } catch {
     // ignore
+  }
+}
+
+// User-initiated logout (e.g. a "Log out" button). Unlike leave(), this
+// actively tells the backend to invalidate the refresh token — important
+// because the user's session is otherwise still valid and could be reused
+// (e.g. a stolen refresh token) until it naturally expires.
+//
+// Always clears local state in the end, even if the network call fails —
+// from the user's point of view, clicking "Log out" must always work.
+export async function logout() {
+  const stored = readUserInfo();
+
+  try {
+    if (stored?.refreshToken) {
+      await fetchWithAuth(`${domain}/api/v1/auth/logout`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ refreshToken: stored.refreshToken }),
+      });
+    }
+  } catch {
+    // Already logged out, session already expired, network error, etc. —
+    // doesn't matter. We still clear local state below regardless.
+  } finally {
+    leave();
   }
 }
 
