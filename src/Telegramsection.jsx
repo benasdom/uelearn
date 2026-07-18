@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function TelegramSection() {
+export function TelegramSection() {
   const [isHovered, setIsHovered] = useState(false);
 
   return (

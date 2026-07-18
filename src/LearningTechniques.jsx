@@ -45,7 +45,7 @@ const techniques = [
   },
 ];
 
-export default function LearningTechniques() {
+export function LearningTechniques() {
   return (
     <div className={styles.wrap}>
         <div className="midmessage">
