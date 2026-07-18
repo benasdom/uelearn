@@ -20,7 +20,7 @@ import {
 import Register          from './menu/Register'
 import { getFromLocalStorage } from './menu/fromlocal'
 import { fetchWithAuth, domain, leave, AuthError } from './menu/authfetch'
-// import {LearningTechniques} from './Learningtechniques'
+import {LearningTechniques} from './Learningtechniques'
 import {TelegramSection}    from './Telegramsection'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ function App() {
           </div>
         </div>
 
-        {/* <LearningTechniques /> */}
+        <LearningTechniques />
         <br />
         <div className="tel"><TelegramSection /></div>
 

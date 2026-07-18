@@ -98,6 +98,8 @@ const SearchList = ({
   const logoutUser=()=>{
     if(confirm("Confirm to Leave")){
       logout();
+    location.reload();
+
     }
   }
   // ── open model selector ──

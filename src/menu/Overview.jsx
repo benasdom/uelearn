@@ -8,15 +8,15 @@ import Nss from "./Nss"
 import Job from "./Job"
 import Solve from "./Solve"
 import Advert from "./Advert"
+import { logout } from "./authfetch"
 export default function Overview({currentView,setcurrentView}) {
     const views="dashboard-nss-referal-solve-earn-leaderboard-advert-job".split("-")
-const leave=()=>{
-    if(confirm("Do you wish to logout"))
-    {
-        localStorage.removeItem("userInfo");
+const logoutUser=()=>{
+        if(confirm("Confirm to Leave")){
+          logout();
         location.reload();
-
-    }
+    
+        }
     }
   
     return (
@@ -34,7 +34,7 @@ const leave=()=>{
           </div>
             <div className="onmenu">
                
-                                <div onClick={leave} className="in">
+                                <div onClick={logoutUser} className="in">
                      <div className="insp"><div className="prem4"></div><span className="fnav"><i className="fa fa-power-off fa-dark"></i></span>Logout</div></div>
                                 <div onClick={()=>{setcurrentView("dashboard")}} className="in">
                      <div className="insp"><div className="prem4"></div><span className="fnav"><i className='fa fa-windows fa-dark'></i></span>General</div></div>
