@@ -2,7 +2,7 @@ import styles from "./LearningTechniques.module.css";
 import racoon from '/imgs/racoon.jpg'
 import PWAInstallButton from './PWAInstallButton'
 
-const techniques = [
+const techniques =[
   {
     num: "01",
     label: "Retrieval Practice",
