@@ -1,5 +1,5 @@
-import racoon from '/imgs/racoon.jpg'
 import styles from "./LearningTechniques.module.css";
+import racoon from '/imgs/racoon.jpg'
 import PWAInstallButton from './PWAInstallButton'
 
 const techniques = [

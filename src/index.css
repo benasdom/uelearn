@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Advent+Pro:ital,wght@0,100..900;1,100..900&family=Fascinate+Inline&family=Michroma&family=Playwrite+IT+Moderna:wght@100..400&family=Righteous&display=swap');
-
 *{
   padding: 0px;
   margin:0px;
@@ -3896,7 +3894,7 @@ text-align: left;
   border:2px solid transparent;
   border-left:2px solid rgba(255, 255, 255, 0.119);
   border-right:2px solid rgba(255, 255, 255, 0.119);
-  height: calc(100% -7px);
+  height: calc(100% - 7px);
   margin: auto;
   margin-top:4.5px;
   margin-bottom:2.5px;
