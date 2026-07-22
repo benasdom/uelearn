@@ -333,6 +333,8 @@ height:50px;}
       padding:0;
       margin:0;
       padding-top:20px;
+  font-weight:500;
+
     }
     .bga{
           display: flex;
@@ -538,7 +540,8 @@ height:50px;}
       display:none;
     }
     .regbox{
-     position:relative;
+     position:absolute;
+     top:0;
      width:100%;
      margin:0px;
      margin-left:0px;
