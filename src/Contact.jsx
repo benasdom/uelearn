@@ -320,6 +320,19 @@ export default function Contact() {
     }
     setSpin(true);
     try {
+      // The backend's /test-telegram/ endpoint only forwards the `message`
+      // field on to the Telegram bot, so we fold name/email/phone into one
+      // nicely formatted message string here on the frontend. Telegram
+      // renders this with Markdown (bold via *text*, line breaks via \n).
+      const formattedMessage =
+        `📩 *New Contact Form Submission*\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *Name:* ${fields.name}\n` +
+        `✉️ *Email:* ${fields.email}\n` +
+        `📞 *Phone:* ${fields.phone}\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `💬 *Message:*\n${fields.message}`;
+
       // Sends the form through our own backend, which relays it to Telegram —
       // requires the visitor to be signed in (fetchWithAuth attaches their
       // access token and refreshes it automatically on a 401).
@@ -327,10 +340,7 @@ export default function Contact() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name:    fields.name,
-          email:   fields.email,
-          phone:   fields.phone,
-          message: fields.message,
+          message: formattedMessage,
         }),
       });
       showToast('Message sent successfully!');

@@ -44,17 +44,6 @@
 .leftcp{
   display: none;
 }
-.cpage{
-  height:100vh;
-  position: absolute;
-  display: flex;
-  justify-content: center;
-  width:100%;
-  align-items: center;
-  margin:0px;
-  background:rgb(4, 7, 10);
-  overflow-x:hidden;
-}
 
 .contactp{
   display: flex;
@@ -291,6 +280,9 @@
   height:50px;
   font-size:15px;
 }
+.inputform{
+  min-height:50px;
+}
 .slideme{
   margin-top:20px;
 }
@@ -337,6 +329,11 @@ height:50px;}
         width:100%;
         word-wrap:break-word;
     }
+    .title{
+      padding:0;
+      margin:0;
+      padding-top:20px;
+    }
     .bga{
           display: flex;
     justify-content: center;
@@ -356,6 +353,9 @@ height:50px;}
     .messagepic{
           max-width: 300px;
 
+    }
+    .mbox{
+      height:max-content;
     }
   .toastmessage{
   width:100%;
@@ -538,35 +538,74 @@ height:50px;}
       display:none;
     }
     .regbox{
-      position:relative;
-      margin:auto;
-      width:98%;
-      padding-top: 100px;
-      padding-bottom: 100px;
+     position:relative;
+     width:100%;
+     margin:0px;
+     margin-left:0px;
+     margin-right:0px;
+  min-height:100dvh;
+  border-radius:0px;
+      background:linear-gradient(rgb(0, 0, 0),rgb(0, 8, 22), rgba(0, 0, 0, 0.8));
+
     }
-    .regform{
-      position:absolute;
-      width:100%;
-      left:0;
+    
+    .regbutton{
+      background:rgba(192, 227, 255, 0.184);
+      border:1px solid white;
+
+      color:white;
     }
-    .register{
-      top:0;
-      height:100vh;
-      
+
+    
+.regform{
+  position:relative;       /* was position:absolute — absolute + height:100% is what caps it */
+  padding-top:0px;
+  border:1px solid transparent;
+  border-radius:0px;
+  width:100%;
+  height:max-content;
+  left:0;
+}
+    .picked{
+      display:none;
     }
+ 
+ .cpage{
+  min-height:100dvh;      /* was height:100vh — let it grow, use dvh */
+  height:auto;
+  position: absolute;
+  display: flex;
+  align-items: flex-start; /* stop centering-clipping overflow */
+  width:100%;
+  overflow-x:hidden;
+  overflow-y:auto;         /* ADD: give it something to scroll */
+  -webkit-overflow-scrolling: touch;
+}
+
+.register{
+  top:0;
+  min-height:100dvh;       /* was height:100vh */
+}
+
     .half{
       width:calc(100% - 10px);
-      height:50vh;
+      display:flex;
+      height:auto;
+      justify-content:flex-start;
+      padding-bottom:40px;
     }
     .tinylogo{
-      width:60px;
+      display:none;
+    }
+    .tlogo{
+      display:flex;
+            width:60px;
       height:60px;
       right:unset;
       top:0;
       align-self: center;
       margin:auto;
-      margin-bottom: -50px;
-
+      margin-top:20px;
     }
     .mlist{
         
@@ -648,6 +687,9 @@ height:50px;}
     width: 90%;
     font-size: 12px;
   }
+  .half2{
+  display:none;
+}
 
   /* Ends-in block */
   .endsin {

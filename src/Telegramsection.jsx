@@ -355,7 +355,7 @@ export function TelegramSection() {
 
       <div className="telegram">
         {/* Animated Telegram Logo */}
-        <div 
+        <a href="https://t.me/uepasco" rel="noopener noreferrer" target="_blank"
           className="telegram-logo-container"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
@@ -401,7 +401,7 @@ export function TelegramSection() {
             <div className="particle" style={{ '--tx': '30px', '--ty': '30px' }}></div>
             <div className="particle" style={{ '--tx': '0px', '--ty': '-40px' }}></div>
           </div>
-        </div>
+        </a>
 
         {/* Content */}
         <div className="telegram-content">
@@ -416,7 +416,7 @@ export function TelegramSection() {
             <div className="dot"></div>
           </div>
 
-          <a href="#" className="telegram-cta">
+          <a href="https://t.me/uepasco" rel="noopener noreferrer" target="_blank" className="telegram-cta">
             Join Community
             <span className="cta-arrow">→</span>
           </a>

@@ -27,9 +27,6 @@ import {TelegramSection}    from './Telegramsection'
 
 const PASCO_API_URL   = "https://benasdom.github.io/ugpascoapi/ugpasco.json";
 const COUNTDOWN_DATE  = new Date("Jan 2, 2026 00:00:00").getTime();
-const TELEGRAM_CHAT_ID = "815965867";
-// Set VITE_TELEGRAM_BOT_TOKEN in your .env file — never hardcode tokens
-const TELEGRAM_TOKEN  = import.meta.env.VITE_TELEGRAM_BOT_TOKEN ?? "";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -83,6 +80,7 @@ function App() {
   const [username,     setusername]     = useState("")
   const [courseName,   setcourseName]   = useState("")
   const [selectedVal,  setselectedVal]  = useState("")
+  const [suggestFeedback, setsuggestFeedback] = useState("")
 
   // ── countdown (separate from above to avoid confusion) ──
   const [countdown, setcountdown] = useState(() => formatCountdown(COUNTDOWN_DATE - Date.now()))
@@ -200,30 +198,32 @@ function App() {
   const sendSuggestion = useCallback(async () => {
     const text = suggestionRef.current?.value?.trim();
     if (!text) return;
-    if (!TELEGRAM_TOKEN) {
-      // Token not configured — fail silently in UI, log for developer
-      if (suggestionRef.current) suggestionRef.current.value = "";
-      return;
-    }
 
     setspin(true);
+    setsuggestFeedback("");
     try {
-      const res = await fetch(
-        `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
-        {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
-        }
-      );
-      if (res.ok) {
-        if (suggestionRef.current) suggestionRef.current.value = "";
-        // Replace alert() with a non-blocking toast if you have one wired up
+      // Routed through our own backend (same endpoint the Contact page uses)
+      // instead of calling the Telegram API directly from the browser —
+      // that would have required bundling the bot token into client-side JS,
+      // exposing it to anyone who opens dev tools.
+      await fetchWithAuth(`${domain}/api/v1/test-telegram/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `💡 *New Suggestion*\n${text}`,
+        }),
+      });
+      if (suggestionRef.current) suggestionRef.current.value = "";
+      setsuggestFeedback("Thanks for the suggestion!");
+    } catch (err) {
+      if (err instanceof AuthError) {
+        setsuggestFeedback("Please sign in to send a suggestion.");
+      } else {
+        setsuggestFeedback("Couldn't send that — try again.");
       }
-    } catch {
-      // Swallow — non-critical feature
     } finally {
       setspin(false);
+      setTimeout(() => setsuggestFeedback(""), 3000);
     }
   }, []);
 
@@ -249,7 +249,7 @@ function App() {
             <span className="inv-ico" />
             {countdown
               ? <>Promotion ends in: <p className="ticket">{countdown}</p></>
-              : <span className="endsin">Promo has ended</span>
+              : <></>
             }
           </div>
 
@@ -357,8 +357,8 @@ function App() {
             <img className="brands" title="myfolder.space"  src={spacelogo} alt="MyFolder" />
           </div>
           <div className="foot1">
-            <div className="foot2"><div className="fnav">⚙️</div> Developed by Unity Elites</div>
-            <div className="foot2"><div className="fnav">💦</div> resource by Myfolder.space</div>
+            <a href="https://unityelites.com" target="_blank"rel="noopener noreferrer" className="foot2"><div className="fnav">⚙️</div> Developed by Unity Elites</a>
+            <a  href="https://myfolder.space" target="_blank"rel="noopener noreferrer" className="foot2"><div className="fnav">💦</div> resource by Myfolder.space</a>
           </div>
           <div className="foot1">
             <div className="twwo" title="Make a suggestion">
@@ -377,6 +377,7 @@ function App() {
                   type="text"
                   className="find"
                   placeholder="Make a suggestion"
+                  onKeyDown={(e) => { if (e.key === 'Enter') sendSuggestion(); }}
                 />
               </div>
               <div className="slash" onClick={sendSuggestion}>
@@ -393,6 +394,11 @@ function App() {
                   />
                 </svg>
               </div>
+              {suggestFeedback && (
+                <div style={{ fontSize: 11, color: "whitesmoke", marginTop: 4, textAlign: "center" }}>
+                  {suggestFeedback}
+                </div>
+              )}
             </div>
           </div>
 

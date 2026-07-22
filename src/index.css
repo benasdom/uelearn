@@ -100,6 +100,17 @@ background-position:bottom,100% -100%,center;
   box-shadow: inset 0px 0px 0px rgba(0, 128, 0, 0);
 
 }
+.tlogo{
+  display:none;
+    right:0;
+  width:50px;
+  height:50px;
+  border:2px solid transparent;
+  margin:20px;
+  border-radius:50%;
+  object-fit:cover;
+
+}
 .register,.regbox ,.half,.regform,
 .inputform,.impbox,.otpver,.noted,.regbutton{
   font-family: righteous;
@@ -143,10 +154,12 @@ justify-content: center;
   box-shadow: inset 0px 0px 0px 0px rgba(255, 255, 255, 0.711), 0px 0px 0px rgb(255, 255, 255);
   min-height: 50px;
   border-radius: 10px;
-  margin-top:5px;
-width: 300px;
+  width: 300px;
    background:rgba(175, 177, 207, 0.141);
   cursor: pointer;
+  margin:auto;
+  margin-top:5px;
+
   -webkit-backdrop-filter:blur(5rem);
   backdrop-filter:blur(5rem);
 
@@ -216,6 +229,11 @@ height:100vh;
   overflow-y:scroll;
   flex-direction:column;
 }
+.title{
+  width:100%;
+  text-align: center;
+  font-family:michroma;
+}
 .tinylogo{
   position:absolute;
   right:0;
@@ -236,12 +254,14 @@ height:100vh;
   margin-bottom:10px;
   margin-top:5px;
   color:black;
-  background:white;
+  background:rgba(255, 255, 255, 0.285);
+  border:1px solid white;
+  color:white;
   font-weight:300;
   align-items:center;
   padding-right:15px;
   padding-left:15px;
-  border-radius:15px;
+  border-radius:5px;
 }
 .otpverbox{
   display:flex;
@@ -268,7 +288,7 @@ height:100vh;
   align-items:center;
   padding-right:15px;
   padding-left:15px;
-  border-radius:15px;
+  border-radius:5px;
 }
 .successmessage{
 position:fixed;

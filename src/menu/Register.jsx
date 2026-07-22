@@ -413,12 +413,12 @@ export default function Register({ setshows }) {
   /* ── shared mini-components ── */
   const GoogleBtn = () => (
     <div style={{ position:"relative" }}>
+      <br></br>
       <div
         className="regbutton"
-        style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"center",
-                 background:"#fff", color:"#111", fontWeight:600 }}
+        style={{ display:"flex", alignItems:"center",border:"1px solid #ffffff9a",borderRadius:"5px", gap:8, justifyContent:"center",fontWeight:600 }}
       >
-        <GoogleOutlined style={{ fontSize:"1.1rem", color:"#ea4335" }}/> Continue with Google
+        <GoogleOutlined style={{ fontSize:"1.1rem",backgroundColor:"#00aeff", padding:4,borderRadius:"50%", color:"#ea4335" }}/> Continue with Google
       </div>
       {/* Google's real button renders here — genuinely present and clickable,
           just invisible, positioned exactly over the styled button above so
@@ -487,7 +487,7 @@ export default function Register({ setshows }) {
             <div className="regnote">{subtitle}</div>
           </div>
         </div>
-        <div className="half">
+        <div className="half ">
           <div className="regform">
             <div className="mbox" style={{ display:"flex", flexDirection:"column", gap:".75rem" }}>
               {children}
@@ -594,7 +594,7 @@ export default function Register({ setshows }) {
             </div>
           </div>
 
-          <div className="half">
+          <div className="half half2">
             <div className="picked">
               <img src={PANEL_IMG} className="brown" alt=""/>
               <img src={PANEL_IMG} className="brown mask" alt=""/>
@@ -649,6 +649,10 @@ export default function Register({ setshows }) {
               {/* ══ LOGIN ══ */}
               {view === VIEW.LOGIN && (
                 <div className="mbox">
+          <img className="tlogo" style={{ zIndex:2 }} src={logo} alt=""/>
+
+        <div class="title">UE LEARN</div>
+
                   <GoogleBtn/>
                   <OrDivider/>
 
@@ -696,6 +700,10 @@ export default function Register({ setshows }) {
               {/* ══ SIGN UP ══ */}
               {view === VIEW.SIGNUP && (
                 <div className="mbox">
+          <img className="tlogo" style={{ zIndex:2 }} src={logo} alt=""/>
+
+        <div class="title">UE LEARN</div>
+
                   <GoogleBtn/>
                   <OrDivider/>
 
@@ -789,7 +797,7 @@ export default function Register({ setshows }) {
                     <div className="regbutton" onClick={validateSignup}>
                       {loading ? "Creating..." : "Sign Up"}
                     </div>
-                    <div className="regbutton" style={{ filter:"invert(1)" }} onClick={() => setview(VIEW.LOGIN)}>
+                    <div className="regbutton" style={{ background:"black", color:"white" }} onClick={() => setview(VIEW.LOGIN)}>
                       Login Instead?
                     </div>
                   </div>
@@ -807,11 +815,11 @@ export default function Register({ setshows }) {
                     />
                   </div>
                   <div className="noted">
-                    <InfoCircleFilled className="micon"/> Click Verify to receive your OTP code
+                    <InfoCircleFilled  className="micon"/> Click Verify to receive your OTP code
                   </div>
                   <div className="otpverbox">
                     <div className="otpver" onClick={validateOtpSend}>
-                      <CheckCircleOutlined className="micon" style={{ filter:"invert(1)" }}/>
+                      <CheckCircleOutlined className="micon" />
                       {otpLoading ? "Sending…" : "Verify"}
                     </div>
                     <div className="resend">
@@ -848,7 +856,7 @@ export default function Register({ setshows }) {
           </div>
 
           <img className="tinylogo" style={{ zIndex:2 }} src={logo} alt=""/>
-        </div>
+                </div>
       </div>
     </div>
   );
