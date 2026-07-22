@@ -20,7 +20,7 @@ import {
 import Register          from './menu/Register'
 import { getFromLocalStorage } from './menu/fromlocal'
 import { fetchWithAuth, domain, leave, AuthError } from './menu/authfetch'
-// import {LearningTechniques} from './Learningtechniques'
+import {LearningTechniques} from './LearningTechniques'
 import {TelegramSection}    from './Telegramsection'
 
 // ─── constants ────────────────────────────────────────────────────────────────
