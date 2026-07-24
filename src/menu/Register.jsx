@@ -413,8 +413,8 @@ const GoogleBtn = ({ blocked = false, blockedMessage = "Please try again." }) =>
       <div
         className="regbutton"
         style={{
-          display:"flex", alignItems:"center", border:"1px solid #ffffff9a",
-          borderRadius:"5px", gap:8, justifyContent:"center", fontWeight:600,
+          display:"flex", alignItems:"center",zIndex:2, border:"1px solid #ffffff9a",
+          borderRadius:"5px", justifyContent:"center", fontWeight:600,
           opacity: googleLoading ? 0.7 : 1,
         }}
       >
@@ -446,8 +446,9 @@ const GoogleBtn = ({ blocked = false, blockedMessage = "Please try again." }) =>
       <div
         ref={(node) => { googleContainerNode.current = node; }}
         style={{
+          marginTop:25,
           position:"absolute", inset:0,
-          opacity:0, overflow:"hidden",
+          opacity:.09, overflow:"hidden",
           display:"flex", alignItems:"center", justifyContent:"center",
           pointerEvents: (blocked || googleLoading) ? "none" : "auto",
         }}
