@@ -100,6 +100,9 @@ background-position:bottom,100% -100%,center;
   box-shadow: inset 0px 0px 0px rgba(0, 128, 0, 0);
 
 }
+.half2{
+  pointer-events: none;
+}
 .tlogo{
   display:none;
     right:0;
@@ -2175,7 +2178,6 @@ z-index:10000;
   height: calc(85vh - 25px);
   overflow-y:scroll;
   overscroll-behavior: contain;
-
   transition:all 1s linear;
 
 }
@@ -2192,6 +2194,7 @@ z-index: 1000;
 clip-path: polygon(0 0, 0% 0, 0% 100%, 0 100%);
   height: calc(85vh - 20px);
   overflow-y:scroll;
+  background:black;
   transition:all 1s linear;
 
 

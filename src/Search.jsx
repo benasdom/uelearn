@@ -9,6 +9,7 @@ const Search=({setsearching,setfind,bar,eprop,handleMenu})=>{
             if(lcontent) lcontent.style.cssText="pointer-events:all;clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);";
             const mcomp =document.querySelector(".menucomp");
             if(mcomp) mcomp.style.cssText="pointer-events:none;clip-path: polygon(0 0, 0% 0, 0% 100%, 0 100%);";
+            handleMenu(false);
     }
     useEffect(() => {
      setfind("")
@@ -24,7 +25,7 @@ const Search=({setsearching,setfind,bar,eprop,handleMenu})=>{
                         ref={bar} onChange={(e)=>{return setfind(e.target.value.trim(""))}}
                         className="find"
                         placeholder="Search a course code..."/></div>
-                    <div className="slash" onClick={handleMenu}>{eprop!="all"?"/":<i className='fa fa-hamburger fa-dark'></i>}</div>
+                    <div className="slash" onClick={()=>handleMenu(true)}>{eprop!="all"?"/":<i className='fa fa-hamburger fa-dark'></i>}</div>
 
      </div>
     )

@@ -238,7 +238,7 @@ const SearchList = ({
               </div>
             </div>
             <Search
-              handleMenu={() => setmenuOpen(true)}
+              handleMenu={(aim) => setmenuOpen(aim)}
               eprop="all"
               setsearching={setsearching}
               bar={bar}
@@ -309,9 +309,8 @@ const SearchList = ({
                 className="menucomp"
                 style={menuOpen
                   ? { clipPath: "polygon(0 0, 100% 0, 100% 100%, 0 100%)", pointerEvents: "all" }
-                  : { clipPath: "polygon(100% 0, 100% 0, 100% 100%, 100% 100%)", pointerEvents: "none" }
+                  : { clipPath: "polygon(0 0, 0% 0, 0% 100%, 0 100%)", pointerEvents: "none" }
                 }
-                onClick={() => setmenuOpen(false)}
               >
                 <div className="menuhead" onClick={(e) => e.stopPropagation()}>
                   <Overview currentView={currentView} setcurrentView={setcurrentView} />
@@ -330,7 +329,7 @@ const SearchList = ({
                 )}
 
                 {/* ── results list ── */}
-                {!showEmptyState ? (
+                {!showEmptyState && filteredPayload.length > 0? (
                   filteredPayload.map((item) => (
                     <div
                       className="filtered"
