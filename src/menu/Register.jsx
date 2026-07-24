@@ -1,13 +1,8 @@
-/**
- * UELearn — Auth Component (production-ready)
- * Views: Login · Sign Up · OTP · Forgot Password · Reset Sent · Terms · Privacy Policy
- */
-
 import {
   InfoCircleFilled, LockOutlined, MailOutlined, MessageOutlined,
   UserAddOutlined, PhoneOutlined, ClockCircleOutlined, CheckCircleOutlined,
   EyeOutlined, EyeInvisibleOutlined, GoogleOutlined, ArrowLeftOutlined,
-  SafetyCertificateOutlined,
+  SafetyCertificateOutlined, LoadingOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect, useRef } from "react";
 import { domain } from "./authfetch";
@@ -81,13 +76,14 @@ export default function Register({ setshows }) {
   const [referalCode, setreferalCode] = useState("");
   const [hasref,      sethasref]      = useState(false);
   const [agreed,      setagreed]      = useState(false);
-
   /* ── ui state ── */
   const [view,        setview]        = useState(VIEW.LOGIN);
   const [legalReturn, setlegalReturn] = useState(VIEW.SIGNUP);
   const [showPwd,     setshowPwd]     = useState(false);
   const [showPwd2,    setshowPwd2]    = useState(false);
   const [loading,     setloading]     = useState(false);
+const [googleLoading, setgoogleLoading] = useState(false); // NEW
+
   const [otpLoading,  setotpLoading]  = useState(false);
   const [counter,     setcounter]     = useState(0);
   const [temptoken,   settemptoken]   = useState("");
@@ -209,7 +205,7 @@ export default function Register({ setshows }) {
   // A login-via-Google skips OTP entirely (returning, already-verified user),
   // same as authlogin(). A signup-via-Google still needs phone verification,
   // same as authenticate().
-  const handleGoogleCredential = async (response) => {
+const handleGoogleCredential = async (response) => {
     if (!response?.credential) {
       showToast("Google sign-in didn't return a credential — please try again.");
       return;
@@ -220,7 +216,7 @@ export default function Register({ setshows }) {
       ? `${domain}/api/v1/auth/login`
       : `${domain}/api/v1/auth/google/register`;
 
-    setloading(true);
+    setgoogleLoading(true); // NEW
     try {
       const res = await fetch(endpoint, {
         method:  "POST",
@@ -243,9 +239,9 @@ export default function Register({ setshows }) {
     } catch (err) {
       showToast("Network error — please check your connection and try again.");
     } finally {
-      setloading(false);
+      setgoogleLoading(false); // NEW
     }
-  };
+};
 
   // Loads the GSI script once and initializes it with our client ID.
   // Does NOT render the button here — Google's rendered button lives inside a
@@ -411,30 +407,53 @@ export default function Register({ setshows }) {
   };
 
   /* ── shared mini-components ── */
-  const GoogleBtn = () => (
+const GoogleBtn = ({ blocked = false, blockedMessage = "Please try again." }) => (
     <div style={{ position:"relative" }}>
       <br></br>
       <div
         className="regbutton"
-        style={{ display:"flex", alignItems:"center",border:"1px solid #ffffff9a",borderRadius:"5px", gap:8, justifyContent:"center",fontWeight:600 }}
+        style={{
+          display:"flex", alignItems:"center", border:"1px solid #ffffff9a",
+          borderRadius:"5px", gap:8, justifyContent:"center", fontWeight:600,
+          opacity: googleLoading ? 0.7 : 1,
+        }}
       >
-        <GoogleOutlined style={{ fontSize:"1.1rem",backgroundColor:"#00aeff", padding:4,borderRadius:"50%", color:"#ea4335" }}/> Continue with Google
+        {googleLoading ? (
+          <>
+            <LoadingOutlined style={{ fontSize:"1.1rem" }}/> Signing in…
+          </>
+        ) : (
+          <>
+            <GoogleOutlined style={{ fontSize:"1.1rem",backgroundColor:"#00aeff", padding:4,borderRadius:"50%", color:"#ea4335" }}/>
+            Continue with Google
+          </>
+        )}
       </div>
-      {/* Google's real button renders here — genuinely present and clickable,
-          just invisible, positioned exactly over the styled button above so
-          clicks land on it natively. (You can't relay a click into this from
-          outside — it's a cross-origin iframe — so it has to physically be here.) */}
+
+      {/* Blocking layer: sits ABOVE the invisible Google iframe. When `blocked`
+          is true it intercepts the click itself (toast + no Google popup).
+          When false it's not rendered, so clicks fall through to the iframe below. */}
+      {blocked && !googleLoading && (
+        <div
+          style={{ position:"absolute", inset:0, zIndex:2, cursor:"pointer" }}
+          onClick={() => showToast(blockedMessage)}
+        />
+      )}
+
+      {/* Google's real button — invisible, positioned exactly over the styled
+          button above. pointer-events is toggled off while blocked/loading so
+          it can't be triggered underneath the blocking layer or mid-request. */}
       <div
         ref={(node) => { googleContainerNode.current = node; }}
         style={{
           position:"absolute", inset:0,
           opacity:0, overflow:"hidden",
           display:"flex", alignItems:"center", justifyContent:"center",
+          pointerEvents: (blocked || googleLoading) ? "none" : "auto",
         }}
       />
     </div>
-  );
-
+);
   const OrDivider = () => (
     <div className="noted" style={{ justifyContent:"center", opacity:.5, gap:8 }}>
       <span style={{ flex:1, height:1, background:"rgba(255,255,255,.35)", display:"inline-block" }}/>
@@ -704,8 +723,10 @@ export default function Register({ setshows }) {
 
         <div class="title">UE LEARN</div>
 
-                  <GoogleBtn/>
-                  <OrDivider/>
+<GoogleBtn
+  blocked={!agreed}
+  blockedMessage="Please accept the Terms & Privacy Policy to continue"
+/>                  <OrDivider/>
 
                   <div className="inputform">
                     <MailOutlined className="micon"/>
