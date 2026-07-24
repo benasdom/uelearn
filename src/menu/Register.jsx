@@ -4,6 +4,7 @@ import {
   EyeOutlined, EyeInvisibleOutlined, GoogleOutlined, ArrowLeftOutlined,
   SafetyCertificateOutlined, LoadingOutlined,
 } from "@ant-design/icons";
+
 import { useState, useEffect, useRef } from "react";
 import { domain } from "./authfetch";
 
@@ -13,6 +14,7 @@ import jude         from "../../public/imgs/jude.jpg";
 import guylogs      from "../../public/imgs/guylogs.png";
 import racoon_learn from "../../public/imgs/racoon_learn.jpg";
 import logo         from "../../public/imgs/titled.jpg";
+import { GoogleBtn } from "./Googlebtn";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -407,54 +409,54 @@ const handleGoogleCredential = async (response) => {
   };
 
   /* ── shared mini-components ── */
-const GoogleBtn = ({ blocked = false, blockedMessage = "Please try again." }) => (
-    <div style={{ position:"relative" }}>
-      <br></br>
-      <div
-        className="regbutton"
-        style={{
-          display:"flex", alignItems:"center",zIndex:2, border:"1px solid #ffffff9a",
-          borderRadius:"5px", justifyContent:"center", fontWeight:600,
-          opacity: googleLoading ? 0.7 : 1,
-        }}
-      >
-        {googleLoading ? (
-          <>
-            <LoadingOutlined style={{ fontSize:"1.1rem" }}/> Signing in…
-          </>
-        ) : (
-          <>
-            <GoogleOutlined style={{ fontSize:"1.1rem",backgroundColor:"#00aeff", padding:4,borderRadius:"50%", color:"#ea4335" }}/>
-            Continue with Google
-          </>
-        )}
-      </div>
+// const GoogleBtn = ({ blocked = false, blockedMessage = "Please try again." }) => (
+//     <div style={{ position:"relative" }}>
+//       <br></br>
+//       <div
+//         className="regbutton"
+//         style={{
+//           display:"flex", alignItems:"center",zIndex:2, border:"1px solid #ffffff9a",
+//           borderRadius:"5px", justifyContent:"center", fontWeight:600,
+//           opacity: googleLoading ? 0.7 : 1,
+//         }}
+//       >
+//         {googleLoading ? (
+//           <>
+//             <LoadingOutlined style={{ fontSize:"1.1rem" }}/> Signing in…
+//           </>
+//         ) : (
+//           <>
+//             <GoogleOutlined style={{ fontSize:"1.1rem",backgroundColor:"#00aeff", padding:4,borderRadius:"50%", color:"#ea4335" }}/>
+//             Continue with Google
+//           </>
+//         )}
+//       </div>
 
-      {/* Blocking layer: sits ABOVE the invisible Google iframe. When `blocked`
-          is true it intercepts the click itself (toast + no Google popup).
-          When false it's not rendered, so clicks fall through to the iframe below. */}
-      {blocked && !googleLoading && (
-        <div
-          style={{ position:"absolute", inset:0, zIndex:2, cursor:"pointer" }}
-          onClick={() => showToast(blockedMessage)}
-        />
-      )}
+//       {/* Blocking layer: sits ABOVE the invisible Google iframe. When `blocked`
+//           is true it intercepts the click itself (toast + no Google popup).
+//           When false it's not rendered, so clicks fall through to the iframe below. */}
+//       {blocked && !googleLoading && (
+//         <div
+//           style={{ position:"absolute", inset:0, zIndex:2, cursor:"pointer" }}
+//           onClick={() => showToast(blockedMessage)}
+//         />
+//       )}
 
-      {/* Google's real button — invisible, positioned exactly over the styled
-          button above. pointer-events is toggled off while blocked/loading so
-          it can't be triggered underneath the blocking layer or mid-request. */}
-      <div
-        ref={(node) => { googleContainerNode.current = node; }}
-        style={{
-          marginTop:25,
-          position:"absolute", inset:0,
-          opacity:.09, overflow:"hidden",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          pointerEvents: (blocked || googleLoading) ? "none" : "auto",
-        }}
-      />
-    </div>
-);
+//       {/* Google's real button — invisible, positioned exactly over the styled
+//           button above. pointer-events is toggled off while blocked/loading so
+//           it can't be triggered underneath the blocking layer or mid-request. */}
+//       <div
+//         ref={(node) => { googleContainerNode.current = node; }}
+//         style={{
+//           marginTop:25,
+//           position:"absolute", inset:0,
+//           opacity:1, overflow:"hidden",
+//           display:"flex", alignItems:"center", justifyContent:"center",
+//           pointerEvents: (blocked || googleLoading) ? "none" : "auto",
+//         }}
+//       />
+//     </div>
+// );
   const OrDivider = () => (
     <div className="noted" style={{ justifyContent:"center", opacity:.5, gap:8 }}>
       <span style={{ flex:1, height:1, background:"rgba(255,255,255,.35)", display:"inline-block" }}/>
@@ -634,8 +636,10 @@ const GoogleBtn = ({ blocked = false, blockedMessage = "Please try again." }) =>
                     <strong style={{ color:"#fff", fontSize:"1rem" }}>Reset your password</strong>
                     <span>Enter your registered email — we'll send a reset link right away.</span>
                   </div>
-                  <GoogleBtn/>
-                  <OrDivider/>
+<GoogleBtn
+  googleLoading={googleLoading}
+  containerRef={googleContainerNode}
+/>                  <OrDivider/>
                   <div className="inputform">
                     <MailOutlined className="micon"/>
                     <input
@@ -673,8 +677,10 @@ const GoogleBtn = ({ blocked = false, blockedMessage = "Please try again." }) =>
 
         <div class="title">UE LEARN</div>
 
-                  <GoogleBtn/>
-                  <OrDivider/>
+<GoogleBtn
+  googleLoading={googleLoading}
+  containerRef={googleContainerNode}
+/>                  <OrDivider/>
 
                   <div className="inputform">
                     <MailOutlined className="micon"/>
@@ -725,9 +731,13 @@ const GoogleBtn = ({ blocked = false, blockedMessage = "Please try again." }) =>
         <div class="title">UE LEARN</div>
 
 <GoogleBtn
+  googleLoading={googleLoading}
   blocked={!agreed}
   blockedMessage="Please accept the Terms & Privacy Policy to continue"
-/>                  <OrDivider/>
+  onBlockedClick={showToast}
+  containerRef={googleContainerNode}
+/>
+              <OrDivider/>
 
                   <div className="inputform">
                     <MailOutlined className="micon"/>
