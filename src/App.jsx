@@ -22,6 +22,7 @@ import { getFromLocalStorage } from './menu/fromlocal'
 import { fetchWithAuth, domain, leave, AuthError } from './menu/authfetch'
 import {LearningTechniques} from './LearningTechniques'
 import {TelegramSection}    from './Telegramsection'
+import {Bottomnav} from './Bottomnav'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -406,17 +407,8 @@ function App() {
         </div>
 
         {/* ── bottom nav ── */}
-        <div className="navbottom">
-          <div className="nbottomlist">
-            <Link to="/"><div className="navb"><i><img className="homepic" src={mainlogo} alt="" /></i><div className="nt">home</div></div></Link>
-            <Link to="/about"><div className="navb"><i><SmileOutlined /></i><div className="nt">about</div></div></Link>
-            <Link to="/contact"><div className="navb"><i><TeamOutlined /></i><div className="nt">contact</div></div></Link>
-            <Link to="/payment" target="_blank" rel="noopener noreferrer">
-              <div className="navb"><i><MoneyCollectOutlined /></i><div className="nt">upgrade</div></div>
-            </Link>
-            <div onClick={leave} className="navb"><i><LogoutOutlined /></i><div className="nt">Logout</div></div>
-          </div>
-        </div>
+      {<Bottomnav cname={"navbottom"} active={"home"}/>}
+      
       </div>) : (
         <SearchList {...searchListProps} />
       )}

@@ -1,6 +1,7 @@
 import { MoneyCollectOutlined, SmileFilled, TeamOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import mainlogo from '/imgs/titled.png';
+import { Bottomnav } from './Bottomnav';
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Outfit:wght@300;400;500&display=swap');
@@ -186,50 +187,8 @@ const styles = `
   }
   .amb-back:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
-  .amb-nav {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(10,12,28,0.8);
-    border: 1px solid rgba(255,255,255,0.1);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 24px;
-    padding: 8px 12px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-    white-space: nowrap;
-  }
-  .amb-nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 8px 14px;
-    border-radius: 16px;
-    color: rgba(255,255,255,0.4);
-    font-size: 10px;
-    font-weight: 500;
-    text-decoration: none;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    transition: all 0.2s ease;
-    min-width: 52px;
-  }
-  .amb-nav-item:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.06); }
-  .amb-nav-item.active { color: #c4b5fd; background: rgba(139,92,246,0.15); }
-  .amb-nav-icon { font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; }
-  .amb-nav-logo { width: 20px; height: 20px; object-fit: contain; opacity: 0.5; transition: opacity 0.2s; }
-  .amb-nav-item:hover .amb-nav-logo, .amb-nav-item.active .amb-nav-logo { opacity: 1; }
-
   @media (max-width: 600px) {
     .amb-card { padding: 32px 24px; border-radius: 20px; }
-    .amb-nav-item { padding: 8px 10px; min-width: 44px; }
-    .amb-nav-label { display: none; }
   }
 `;
 
@@ -273,24 +232,7 @@ export default function About() {
           </a>
         </div>
 
-        <nav className="amb-nav">
-          <Link to="/" className="amb-nav-item">
-            <span className="amb-nav-icon"><img className="amb-nav-logo" src={mainlogo} alt="" /></span>
-            <span className="amb-nav-label">Home</span>
-          </Link>
-          <Link to="/about" className="amb-nav-item active">
-            <span className="amb-nav-icon"><SmileFilled /></span>
-            <span className="amb-nav-label">About</span>
-          </Link>
-          <Link to="/contact" className="amb-nav-item">
-            <span className="amb-nav-icon"><TeamOutlined /></span>
-            <span className="amb-nav-label">Contact</span>
-          </Link>
-          <Link to="/payment" className="amb-nav-item" target="_blank" rel="noopener noreferrer">
-            <span className="amb-nav-icon"><MoneyCollectOutlined /></span>
-            <span className="amb-nav-label">Upgrade</span>
-          </Link>
-        </nav>
+      <Bottomnav active="about"/>
       </div>
     </>
   );

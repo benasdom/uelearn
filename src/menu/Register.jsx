@@ -468,10 +468,10 @@ const handleGoogleCredential = async (response) => {
   const LegalFooter = ({ returnView }) => (
     <div className="noted" style={{ fontSize:".72rem", opacity:.55, justifyContent:"center", flexWrap:"wrap", gap:4 }}>
       By continuing you agree to our&nbsp;
-      <span style={{ textDecoration:"underline", cursor:"pointer" }}
+      <span style={{ textDecoration:"underline", cursor:"pointer", color:"cyan" }}
         onClick={() => { setlegalReturn(returnView); setview(VIEW.TERMS); }}>Terms</span>
       &nbsp;&amp;&nbsp;
-      <span style={{ textDecoration:"underline", cursor:"pointer" }}
+      <span style={{ textDecoration:"underline", cursor:"pointer", color:"cyan" }}
         onClick={() => { setlegalReturn(returnView); setview(VIEW.POLICY); }}>Privacy Policy</span>
     </div>
   );
@@ -702,7 +702,7 @@ const handleGoogleCredential = async (response) => {
 
                   <div className="noted" style={{ justifyContent:"flex-end" }}>
                     <span
-                      style={{ cursor:"pointer", textDecoration:"underline", opacity:.75, fontSize:".8rem" }}
+                      style={{ cursor:"pointer", textDecoration:"underline", opacity:.75,color:"cyan", fontSize:".8rem" }}
                       onClick={() => setview(VIEW.FORGOT)}
                     >
                       Forgot password?
@@ -733,7 +733,7 @@ const handleGoogleCredential = async (response) => {
 <GoogleBtn
   googleLoading={googleLoading}
   blocked={!agreed}
-  blockedMessage="Please accept the Terms & Privacy Policy to continue"
+  blockedMessage="Please accept the Terms & Privacy Policy to continue.👇"
   onBlockedClick={showToast}
   containerRef={googleContainerNode}
 />
@@ -813,12 +813,12 @@ const handleGoogleCredential = async (response) => {
                     />
                     <span style={{ fontSize:".78rem", lineHeight:1.6 }}>
                       I agree to the&nbsp;
-                      <span style={{ textDecoration:"underline", cursor:"pointer" }}
+                      <span style={{ textDecoration:"underline", cursor:"pointer", color:"cyan" }}
                         onClick={(e) => { e.preventDefault(); setlegalReturn(VIEW.SIGNUP); setview(VIEW.TERMS); }}>
                         Terms of Service
                       </span>
                       &nbsp;and&nbsp;
-                      <span style={{ textDecoration:"underline", cursor:"pointer" }}
+                      <span style={{ textDecoration:"underline", cursor:"pointer", color:"cyan" }}
                         onClick={(e) => { e.preventDefault(); setlegalReturn(VIEW.SIGNUP); setview(VIEW.POLICY); }}>
                         Privacy Policy
                       </span>
