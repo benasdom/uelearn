@@ -5,7 +5,7 @@ import pdfpic from '/imgs/pdf.png'
 import {
   ExportOutlined, ArrowLeftOutlined, FileProtectOutlined,
   MoneyCollectOutlined, AppstoreOutlined, GoldFilled, DollarOutlined,
-  SolutionOutlined, ScheduleOutlined, LogoutOutlined, TeamOutlined,
+  SolutionOutlined, ScheduleOutlined, LogoutOutlined, TeamOutlined,MenuFoldOutlined,MenuUnfoldOutlined
 } from '@ant-design/icons'
 import spinner from '/imgs/loader.svg'
 import { Link } from 'react-router-dom'
@@ -92,6 +92,8 @@ const SearchList = ({
   const [showpdf,      setshowpdf]      = useState(false)
   const [extract,      setextract]      = useState("loading...")
   const [raw,          setraw]          = useState("")
+         const [collapsed, setCollapsed] = useState(false);
+
   // Controls whether the side-menu panel is open
   const [menuOpen,     setmenuOpen]     = useState(false)
 
@@ -250,61 +252,83 @@ const SearchList = ({
 
           <div className="bothsides">
             {/* ── side menu ── */}
-            <div className="sidemenubar">
-              <div
-                className="mymenubox"
-                onClick={() => setmenuOpen(true)}
-                // Expose menu-open state via a data attribute so CSS can handle
-                // the clip-path transition without imperative DOM writes
-                data-open={menuOpen}
-              >
-                <div className="rbackdrop" />
-                <img className="racoonp" src={racoon} alt="" />
 
-                <div className="firstitem">
-                  <div className="abs" />
-                  <Link to="/payment" target="_blank" rel="noopener noreferrer">
-                    <div className="paid">
-                      <div className="fnav">✨</div>
-                      <MoneyCollectOutlined style={{ marginRight: 4 }} />
-                      Upgrade
-                      <div className="fnav">✨</div>
-                    </div>
-                  </Link>
-                </div>
+<div className={`sidemenubar ${collapsed ? "collapsed" : ""}`}>
+  <div
+    className="mymenubox"
+    onClick={() => setmenuOpen(true)}
+    data-open={menuOpen}
+  >
+    <div className="rbackdrop" />
+    <img className="racoonp" src={racoon} alt="" />
 
-                <div className="mymenu">
-                  {[
-                    { view: "dashboard",  icon: <AppstoreOutlined className="micon" />,    label: "General" },
-                    { view: "solve",      icon: <FileProtectOutlined className="micon" />,  label: "Our Products", badge: "✨" },
-                    { view: "leaderboard",icon: <GoldFilled className="micon" />,           label: "Leaderboard" },
-                    { view: "referal",    icon: <i style={{ fontSize: 10 }} className="fa fa-users micon" />, label: "Referal Details" },
-                    { view: "earn",       icon: <DollarOutlined className="micon" />,       label: "Earn", badge: "💰" },
-                    { view: "advert",     icon: <ScheduleOutlined className="micon" />,     label: "Advertise your business", badge: "📢" },
-                    { view: "nss",        icon: <SolutionOutlined className="micon" />,     label: "NSS Guide" },
-                    { view: "job",        icon: <TeamOutlined className="micon" />,         label: "Job Application Guide" },
-                  ].map(({ view, icon, label, badge }) => (
-                    <div
-                      key={view}
-                      className="menuitems"
-                      onClick={() => { setcurrentView(view); setmenuOpen(false); }}
-                    >
-                      <div className="inmenu">
-                        {icon}{label}{badge && <div className="fnav">{badge}</div>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+    {/* Collapse toggle */}
+    <div
+      className="collapse-toggle"
+      onClick={(e) => { e.stopPropagation(); setCollapsed((c) => !c); }}
+    >
+      {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+    </div>
 
-                <div className="menuitems logout" style={{ padding: 20 }} onClick={logoutUser}>
-                  <div className="inmenu"><LogoutOutlined className="micon" />Logout</div>
-                </div>
-              </div>
-            </div>
+    <div className="firstitem">
+      <Link to="/payment" target="_blank" rel="noopener noreferrer">
+        <div className="paid">
+          <div className="fnav">✨</div>
+          <MoneyCollectOutlined class="fnav-money" />
+          <span className="menu-label">Upgrade</span>
+          <div className="fnav">✨</div>
+        </div>
+      </Link>
+    </div>
+
+    <div className="mymenu">
+      {[
+        { view: "dashboard",   icon: <AppstoreOutlined className="micon" />,    label: "General" },
+        { view: "solve",       icon: <FileProtectOutlined className="micon" />, label: "Our Products", badge: "✨" },
+        { view: "leaderboard", icon: <GoldFilled className="micon" />,          label: "Leaderboard" },
+        { view: "referal",     icon: <i style={{ fontSize: 10 }} className="fa fa-users micon" />, label: "Referal Details" },
+        { view: "earn",        icon: <DollarOutlined className="micon" />,      label: "Earn", badge: "💰" },
+        { view: "advert",      icon: <ScheduleOutlined className="micon" />,    label: "Advertise your business", badge: "📢" },
+        { view: "nss",         icon: <SolutionOutlined className="micon" />,    label: "NSS Guide" },
+        { view: "job",         icon: <TeamOutlined className="micon" />,        label: "Job Application Guide" },
+      ].map(({ view, icon, label, badge }) => (
+        <div
+          key={view}
+          className="menuitems"
+          onClick={() => { setcurrentView(view); setmenuOpen(false); }}
+          title={collapsed ? label : undefined}
+        >
+          <div className="inmenu">
+            <span>{icon}</span>
+            <small className="menu-label">{label}</small>
+            {badge && <div className="fnav">{badge}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <div className="menuitems logout" style={{ padding: 20 }} onClick={logoutUser}>
+      <div className="inmenu">
+        <LogoutOutlined className="micon" />
+        <span className="menu-label">Logout</span>
+      </div>
+    </div>
+  </div>
+</div>
 
             {/* ── main content ── */}
             <div className="mcontent">
               {/* Overlay menu panel — close when clicking backdrop */}
+                   {selectModel && (
+                  <ModelComponent
+                    setselectedVal={setselectedVal}
+                    selectedVal={selectedVal}
+                    setselectModel={setselectModel}
+                    getpayload={getpayload}
+                    selectlink={selectlink}
+                  />
+                )}
+
               <div
                 className="menucomp"
                 style={menuOpen
@@ -318,16 +342,7 @@ const SearchList = ({
               </div>
 
               <div className="listcontent">
-                {selectModel && (
-                  <ModelComponent
-                    setselectedVal={setselectedVal}
-                    selectedVal={selectedVal}
-                    setselectModel={setselectModel}
-                    getpayload={getpayload}
-                    selectlink={selectlink}
-                  />
-                )}
-
+           
                 {/* ── results list ── */}
                 {!showEmptyState && filteredPayload.length > 0? (
                   filteredPayload.map((item) => (
@@ -365,7 +380,7 @@ const SearchList = ({
                   >
                     <div className="ready">
                       <div className="big">🔎</div>
-                      <div className="rbackdrop" />
+                      <div/>
                       <div className="desc err4">
                         <div className="fnav2" style={{ padding: 2 }}>
                           <img className="reglate" src={mainlogo} alt="" />

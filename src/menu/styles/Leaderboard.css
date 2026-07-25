@@ -1,0 +1,370 @@
+/* ==========================================================================
+   Leaderboard.css
+   Shares tokens with Dashboard.css — if both files load on the same page,
+   delete the :root/[data-theme] block below to avoid duplicate definitions.
+   Responsive: single breakpoint at 720px.
+   ========================================================================== */
+
+:root,
+[data-theme='dark'] {
+  --bg: #0a0b0f;
+  --surface-1: #111319;
+  --surface-2: #15171f;
+  --surface-3: #1a1c24;
+  --border: #23262f;
+  --text: #f2f3f5;
+  --text-muted: #8a8e99;
+  --text-faint: #5b5f6a;
+  --shadow: none;
+
+  --accent-cyan: #35c7e8;
+  --accent-blue: #3b7cf6;
+  --accent-pink: #ef3fa6;
+  --gold: #f6c945;
+  --silver: #c7ccd6;
+  --bronze: #d9884f;
+}
+
+[data-theme='light'] {
+  --bg: #f4f5f7;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #f8f9fb;
+  --border: #e3e5ea;
+  --text: #14161b;
+  --text-muted: #6b7078;
+  --text-faint: #9498a1;
+  --shadow: 0 4px 16px rgba(20, 22, 27, 0.08);
+
+  --accent-cyan: #35c7e8;
+  --accent-blue: #3b7cf6;
+  --accent-pink: #ef3fa6;
+  --gold: #e0a91f;
+  --silver: #9aa1ad;
+  --bronze: #b96a34;
+}
+
+/* Card shell ---------------------------------------------------------------- */
+
+.lb-card {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  padding-bottom:100px;
+  width: 100%;
+  box-sizing: border-box;
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  isolation: isolate;
+}
+
+.lb-dotgrid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.3;
+  mask-image: radial-gradient(circle at 80% 0%, black 0%, transparent 70%);
+}
+
+.lb-glow {
+  position: absolute;
+  top: -60px;
+  left: -60px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 70%);
+  opacity: 0.16;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Banner ---------------------------------------------------------------------- */
+
+.lb-banner {
+  position: relative;
+  z-index: 1;
+  display:flex;
+  justify-content: center;
+  height: 140px;
+  overflow: visible;
+}
+
+.lb-banner-img {
+  width: 1200px;
+  align-self:center;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+}
+
+.lb-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, var(--surface-1) 100%);
+}
+
+.lb-badge {
+  position: absolute;
+  bottom: -22px;
+  left: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid var(--surface-1);
+  object-fit: cover;
+  box-shadow: var(--shadow);
+}
+
+.lb-title {
+  position: absolute;
+  bottom: 10px;
+  right: 20px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Your position ----------------------------------------------------------------- */
+
+.lb-position {
+  position: relative;
+  z-index: 1;
+  margin-top: 32px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.lb-position-value {
+  color: var(--accent-cyan);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.lb-position-value sup {
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 1px;
+}
+
+/* List ---------------------------------------------------------------------------- */
+
+.lb-list {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 20px 20px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.lb-row:hover {
+  background: var(--surface-3);
+}
+
+.lb-row-top {
+  border-color: var(--border);
+  position: relative;
+}
+
+.lb-row-top-1 {
+  background: linear-gradient(90deg, rgba(246, 201, 69, 0.12), transparent 60%);
+  border-color: rgba(246, 201, 69, 0.4);
+}
+
+.lb-row-top-2 {
+  background: linear-gradient(90deg, rgba(199, 204, 214, 0.12), transparent 60%);
+  border-color: rgba(199, 204, 214, 0.35);
+}
+
+.lb-row-top-3 {
+  background: linear-gradient(90deg, rgba(217, 136, 79, 0.12), transparent 60%);
+  border-color: rgba(217, 136, 79, 0.35);
+}
+
+.lb-row-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.lb-row-rank-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.lb-row-medal {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gold);
+}
+
+.lb-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-row-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-row-date {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.lb-row-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.lb-icon-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--accent-cyan);
+  font-size: 12px;
+}
+
+.lb-rank-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Responsive — 720px breakpoint
+   ========================================================================== */
+
+@media (max-width: 720px) {
+  .lb-banner {
+    height: 110px;
+  }
+
+  .lb-banner-img {
+    height: 110px;
+  }
+
+  .lb-badge {
+    width: 46px;
+    height: 46px;
+    bottom: -18px;
+    left: 16px;
+  }
+
+  .lb-title {
+    font-size: 17px;
+    right: 16px;
+  }
+
+  .lb-position {
+    margin-top: 26px;
+    padding: 0 16px;
+  }
+
+  .lb-list {
+    padding: 14px 16px 16px;
+    max-height: 360px;
+  }
+
+  .lb-row {
+    padding: 8px 10px;
+    gap: 10px;
+  }
+
+  .lb-row-name {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .lb-row-date {
+    display: none;
+  }
+
+  .lb-row-rank,
+  .lb-row-rank-number,
+  .lb-row-medal {
+    width: 28px;
+    height: 28px;
+  }
+
+  .lb-icon-chip,
+  .lb-rank-chip {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    font-size: 11px;
+  }
+}
+
+/* Reduced motion ------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-row {
+    transition: none;
+  }
+}

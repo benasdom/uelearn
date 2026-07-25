@@ -1,0 +1,211 @@
+/* ==========================================================================
+   JobGuidePlaceholder.css
+   Shares tokens with Dashboard.css — if both files are loaded, you can
+   safely delete the :root/[data-theme] block below to avoid duplication.
+   Responsive: single breakpoint at 720px.
+   ========================================================================== */
+
+:root,
+[data-theme='dark'] {
+  --bg: #0a0b0f;
+  --surface-1: #111319;
+  --surface-2: #15171f;
+  --surface-3: #1a1c24;
+  --border: #23262f;
+  --text: #f2f3f5;
+  --text-muted: #8a8e99;
+  --text-faint: #5b5f6a;
+  --shadow: none;
+
+  --accent-cyan: #35c7e8;
+  --accent-blue: #3b7cf6;
+  --accent-pink: #ef3fa6;
+  --danger: #ef4444;
+}
+
+[data-theme='light'] {
+  --bg: #f4f5f7;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #f8f9fb;
+  --border: #e3e5ea;
+  --text: #14161b;
+  --text-muted: #6b7078;
+  --text-faint: #9498a1;
+  --shadow: 0 4px 16px rgba(20, 22, 27, 0.08);
+
+  --accent-cyan: #35c7e8;
+  --accent-blue: #3b7cf6;
+  --accent-pink: #ef3fa6;
+  --danger: #ef4444;
+}
+
+/* Card shell --------------------------------------------------------------- */
+
+.uc-card {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+
+.uc-dotgrid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.35;
+  mask-image: radial-gradient(circle at 20% 0%, black 0%, transparent 70%);
+}
+
+.uc-glow {
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 70%);
+  opacity: 0.18;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Board / header ------------------------------------------------------------ */
+
+.levelitem2.board {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 320px;
+}
+
+.levelitem2.board .streak {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent-cyan);
+  text-align: center;
+}
+
+.levelitem2.board .streak:first-child {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* Missing / empty state ------------------------------------------------------ */
+
+.missing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.construction {
+  font-size: 56px;
+  line-height: 1;
+  animation: uc-float 3s ease-in-out infinite;
+}
+
+@keyframes uc-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.missingtext {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.micon {
+  font-size: 16px;
+}
+
+.uc-subtext {
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+  max-width: 320px;
+}
+
+/* ==========================================================================
+   Responsive — 720px breakpoint
+   ========================================================================== */
+
+@media (max-width: 720px) {
+  .uc-card {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .levelitem2.board {
+    min-height: 240px;
+  }
+
+  .construction {
+    font-size: 44px;
+  }
+
+  .missingtext {
+    font-size: 14px;
+  }
+
+  .uc-subtext {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .missing {
+    padding: 16px 8px;
+    gap: 12px;
+  }
+
+  .construction {
+    font-size: 36px;
+  }
+
+  .missingtext {
+    font-size: 13px;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* Reduced motion ------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .construction {
+    animation: none;
+  }
+}

@@ -510,6 +510,7 @@ height:50px;}
     }
     .mselect{
     width:100%;
+    border-radius:0px;
     }
     .payopts{
       display: flex;

@@ -2150,18 +2150,16 @@ z-index:10000;
   padding:5px;
   padding-left: 20px;
   padding-right:20px;
-  background:rgba(175, 177, 207, 0.141);
+  background:rgba(18, 18, 18, 0.141);
   z-index:100;
 }
 .mcontent{
   position:relative;
   display: flex;
   flex-direction: row;
-  padding-left:10px;
-  padding-right:10px;
   overflow:hidden;
   border-radius: 20px;
-  width: 77%;
+  width: 100%;
   margin:auto;
   height: calc(85vh - 20px);
   overflow-y:scroll;
@@ -2229,7 +2227,106 @@ clip-path: polygon(0 0, 0% 0, 0% 100%, 0 100%);
   justify-content: center;
   align-items:center;
   height: 85vh;
+  transition: width .3s ease-in-out;
+}
 
+.sidemenubar.collapsed{
+  width:80px;
+}
+
+.mymenubox{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  height:calc(100% - 20px);
+  width:100%;
+  align-items: center;
+  border-radius: 10px;
+  background:repeating-linear-gradient(45deg,rgba(42, 42, 52, 0.01) 15%,rgba(59, 59, 72, 0.07) 40%);
+  box-shadow: inset 0px -600px 100px rgba(175, 177, 207, 0.141);
+  transition: width .3s ease-in-out;
+}
+
+.collapse-toggle{
+  position:absolute;
+  top:10px;
+  right:-14px;
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  background:#2a2a34;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  z-index:10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.menuitems,.firstitem{
+  height:40px;
+  width:95%;
+  border-radius: 15px;
+  margin:auto;
+  cursor: pointer;
+  border:1px solid transparent;
+  margin-top:10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom:10px;
+  transition: all .6s ease-in-out;
+}
+
+.menuitems{
+  width:90%;
+  position:relative;
+  overflow:clip;
+}
+
+
+.menuitems:active{
+  opacity:.2;
+}
+
+/* Label text fades/collapses, icons stay put */
+.menu-label{
+  white-space: nowrap;
+  overflow: hidden;
+  display: inline-block;
+  max-width: 200px;
+  opacity: 1;
+  transition: max-width .25s ease-in-out, opacity .2s ease-in-out, margin .25s ease-in-out;
+}
+
+.sidemenubar.collapsed .menu-label{
+  max-width: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.sidemenubar.collapsed .inmenu,
+.sidemenubar.collapsed .paid{
+  justify-content: center;
+}
+.sidemenubar.collapsed .inmenu span{
+  border-right:0px solid rgba(94, 11, 11, 0);
+  padding-right:0px;
+}
+.sidemenubar.collapsed .firstitem{
+  display:flex;
+  justify-content: center;
+  align-items: center;
+  max-width:60px;
+  padding:10px;
+  border-radius:15px;
+}
+.sidemenubar.collapsed .abs,
+.sidemenubar.collapsed .fnav{
+  visibility:hidden;
+  width:0px;
+  margin:0px;
 }
 .menuitems,.firstitem{
   height:40px;
@@ -2348,7 +2445,7 @@ align-items:center;
 
 }
 .inmenu{
-  padding-left: 20px;
+  padding-left: 15px;
        color:rgba(234, 246, 255, 0.9);
        background:rgba(255, 255, 255, 0.018);
        width:100%;
@@ -2545,6 +2642,8 @@ clip-path: polygon(78% 0%, 85% 0%, 93% 0%, 93% 0%, 89% 0%, 100% 0%, 100% 100%, 0
 }
 
 .firstitem{
+  display:flex;
+  justify-content: center;
   background:linear-gradient(340deg,rgb(234, 0, 255),rgba(0, 153, 255, 0.899)80%,rgba(0, 255, 102, 0.92) 30%);
   box-shadow: 4px 5px 3px rgb(0, 0, 0);
   border-bottom:1px solid rgba(255, 255, 255, 0.846);
@@ -2745,6 +2844,9 @@ z-index:0 !important;
   top:0;
   margin-right:20px;
 
+}
+.fnav-money{
+  margin-right:4px;
 }
 .micon{
   margin-right:15px;
@@ -3259,7 +3361,7 @@ border-radius: 10px;
   justify-content: center;
   flex-direction: column;
   align-items: center;
-  background:rgba(8, 7, 12, 0.621);
+  background:rgba(4, 1, 15, 0.055);
   width:100%;
   height:100%;
 
@@ -3742,7 +3844,6 @@ text-align: center;
    background:
    linear-gradient(45deg,rgba(72, 72, 88, 0.01) 15%,rgba(32, 0, 62, 0.7) 40%);
    box-shadow: inset 20px -500px 5px rgba(186, 189, 255, 0.31);
- margin-top: 100px;
   border-radius:10px;
 }
 option{
@@ -3784,17 +3885,17 @@ text-align:center;
   
 }
 .mselect{
-  position:fixed;
   top:0;
   right:0;
   display:flex;
   flex-direction: column;
   justify-content: center;
-  width:calc(77% - 10px);
+  width:100%;
   background:rgb(0,1,20);
   align-items:center;
   overflow:hidden;
-  height:100vh;
+  height:100%;
+  border-radius:15px;
   z-index:10;
 }
 .paid{
@@ -3822,7 +3923,7 @@ text-align:center;
 .menuhead{
   position: relative;
   height:100%;
-  background:linear-gradient(black,rgba(255, 255, 255, 0.1));
+  background:rgba(4, 1, 15, 0.055);
 
 }
 .mymenu{

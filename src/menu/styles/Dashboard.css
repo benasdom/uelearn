@@ -1,0 +1,531 @@
+/* ==========================================================================
+   Dashboard.css
+   Theming: dark (default) / light via [data-theme] on <html>
+   Responsive: single breakpoint at 720px (card-scale component, tighter
+   than the 900px system-wide layout breakpoint)
+   ========================================================================== */
+
+:root,
+[data-theme='dark'] {
+  --bg: #0a0b0f;
+  --surface-1: #111319;
+  --surface-2: #15171f;
+  --surface-3: #1a1c24;
+  --border: #23262f;
+  --text: #f2f3f5;
+  --text-muted: #8a8e99;
+  --text-faint: #5b5f6a;
+  --overlay: rgba(10, 11, 15, 0.6);
+  --shadow: none;
+
+  --accent-cyan: #35c7e8;
+  --accent-blue: #3b7cf6;
+  --accent-pink: #ef3fa6;
+  --danger: #ef4444;
+  --success: #35e8a0;
+}
+
+[data-theme='light'] {
+  --bg: #f4f5f7;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #f8f9fb;
+  --border: #e3e5ea;
+  --text: #14161b;
+  --text-muted: #6b7078;
+  --text-faint: #9498a1;
+  --overlay: rgba(20, 22, 27, 0.35);
+  --shadow: 0 4px 16px rgba(20, 22, 27, 0.08);
+
+  --accent-cyan: #35c7e8;
+  --accent-blue: #3b7cf6;
+  --accent-pink: #ef3fa6;
+  --danger: #ef4444;
+  --success: #1fae7c;
+}
+
+/* Card shell ------------------------------------------------------------- */
+
+.db-card {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+
+.db-dotgrid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.35;
+  mask-image: radial-gradient(circle at 20% 0%, black 0%, transparent 70%);
+}
+
+.db-glow {
+  position: absolute;
+  top: -60px;
+  left: -60px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 70%);
+  opacity: 0.18;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Trigger row -------------------------------------------------------------- */
+
+.db-trigger {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 8px 10px 8px 8px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.14s ease;
+  font-family: inherit;
+}
+
+.db-trigger:hover {
+  background: var(--surface-2);
+}
+
+.db-trigger:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+.db-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-pink));
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.db-trigger-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+  text-align: left;
+}
+
+.db-trigger-chevron {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* Fade-in-up (signature transition) --------------------------------------- */
+
+.db-fade-in-up {
+  animation: db-fade-in-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes db-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Overview ----------------------------------------------------------------- */
+
+.db-overview {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.db-level-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.db-level-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.db-level-col-end {
+  align-items: flex-end;
+}
+
+.db-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.db-level-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.db-badge {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.db-streak-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.db-streak-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent-cyan);
+  text-align: center;
+}
+
+.db-streak-stats {
+  display: flex;
+  align-items: center;
+}
+
+.db-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.db-stat-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+}
+
+.db-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.db-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.db-stars {
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.db-wallet-card {
+  position: relative;
+  background: linear-gradient(135deg, transparent 0%, var(--accent-blue) 100%);
+  border-radius: 12px;
+  padding: 16px;
+  overflow: hidden;
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.db-wallet-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+  z-index: 1;
+}
+
+.db-icon-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--accent-cyan);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.db-icon-chip-light {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+}
+
+.db-wallet-backdrop {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  height: 90px;
+  opacity: .7;
+  z-index: 0;
+}
+
+.db-wallet-value {
+  font-family:michroma;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  z-index: 1;
+}
+
+/* Profile detail view -------------------------------------------------------- */
+
+.db-profile {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.db-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.db-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.db-panel-title-sub {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 2px;
+}
+
+.db-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.db-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.db-field-wide {
+  grid-column: 1 / -1;
+}
+
+.db-field-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.db-field-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.db-field-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.db-field-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.db-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.db-status {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.db-status-success {
+  color: var(--success);
+}
+
+.db-status-danger {
+  color: var(--danger);
+}
+
+.db-verify-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  cursor: pointer;
+  padding: 3px 10px;
+  border: 1px solid var(--accent-cyan);
+  background: transparent;
+  border-radius: 6px;
+  transition: background 0.14s ease;
+}
+
+.db-verify-btn:hover {
+  background: var(--surface-3);
+}
+
+.db-verify-btn:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Responsive — 720px breakpoint
+   ========================================================================== */
+
+@media (max-width: 720px) {
+  .db-card {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .db-profile {
+    grid-template-columns: 1fr;
+  }
+
+  .db-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .db-stat-value {
+    font-size: 18px;
+  }
+
+  .db-wallet-backdrop {
+    width: 64px;
+    height: 64px;
+  }
+
+  .db-wallet-value {
+    font-size: 16px;
+  }
+
+  .db-trigger-text {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .db-card {
+    padding: 12px;
+  }
+
+  .db-level-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .db-level-col-end {
+    align-items: flex-start;
+  }
+
+  .db-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .db-level-name {
+    font-size: 13px;
+  }
+
+  .db-streak-title {
+    font-size: 12px;
+  }
+
+  .db-status-row {
+    gap: 6px;
+  }
+}
+
+/* Reduced motion ------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
