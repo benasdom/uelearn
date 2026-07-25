@@ -7,6 +7,7 @@ import About from './About.jsx';
 import Contact from './Contact.jsx';
 import Notfound from './Notfound.jsx';
 import Payment from './menu/Payment.jsx';
+import Reset from './menu/Reset.jsx';
 import './mobile.css'
 import './print.css'
 
@@ -18,6 +19,7 @@ const MainRouter = () => {
     <Routes>
         <Route path="/" element={<App />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/reset-password" element={<Reset />} />
         <Route path="/about" element={<About />} />
         <Route path="/payment" element={<Payment setcredits={setCredits} />} />
         <Route path="*" element={<Notfound />} />

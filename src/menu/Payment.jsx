@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { ArrowLeftOutlined, StarFilled, CrownFilled, WalletFilled, RocketFilled } from '@ant-design/icons'
 import PaystackPop from '@paystack/inline-js'
 import { domain, fetchWithAuth, LocalApiPath } from './authfetch'
@@ -10,7 +9,8 @@ import stat3 from '/imgs/jess.jpg'
 import stat4 from '/imgs/jude.jpg'
 
 import LoadComponent from "../Loadcomponent";
-
+import {Bottomnav} from "../Bottomnav";
+import './styles/Payment.css'
 const Payment = ({ setcredits }) => {
   const udata = JSON.parse(localStorage.getItem("userInfo"));
   const [credits, setCreditsDisplay] = useState(udata?.credits || 0);  let urlPost = domain + '/api/v1/user/credits';
@@ -19,9 +19,9 @@ const Payment = ({ setcredits }) => {
   const [loadme, setloadme] = useState(false)
   const [fetchError, setfetchError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
-  
+
   const countdownDate = new Date("Jan 2, 2026 00:00:00").getTime();
-  
+
   useEffect(() => {
     const x = setInterval(function () {
       const now = new Date().getTime();
@@ -34,7 +34,9 @@ const Payment = ({ setcredits }) => {
       setcounter(`${days}d ${hours}h ${minutes}m ${seconds}s left`);
       if (distance < 0) {
         clearInterval(x);
-        document.querySelector(".endsin").innerHTML = "Promo has ended";
+        const el = document.querySelector(".endsin");
+        el.innerHTML = "Promo has ended";
+        el.classList.add("pay-promo-ended");
       }
     }, 1000);
     return () => clearInterval(x);
@@ -97,20 +99,20 @@ const handleSetCredits = (val) => {
         tierName: tier.name 
       }),
     }
-    
+
     fetchWithAuth(urlPost, options)
       .then((data) => {
         console
         // Assume backend returns the actual added credits in 'data.added'
         const creditsAdded = data.added || tier.creditReward;
-        
+
         const updatedUserData = {
           ...udata,
           credits: (udata?.credits || 0) + creditsAdded,
           tier: tier.premiumType
         };
         localStorage.setItem("userInfo", JSON.stringify(updatedUserData));
-      
+
 handleSetCredits(updatedUserData.credits);
 setErrorMessage(`🟢 Success! ${creditsAdded} credits added.`);
         setfetchError(true);
@@ -127,56 +129,73 @@ window.open('', '_self', '');
   window.close();
 }
   return (
-    <div className="pcontainer">
+    <div className="pay-page">
       {fetchError && <Toaster setfetchError={setfetchError} errorMessage={errorMessage} />}
-      <div className="pcontainer2">
-        <h2 className="paytitle">Choose Your Plan</h2>
-        <h2 className="endsin">
-  <p className="cdown">PROMO: 🎟️ {counter}</p>
-</h2>
 
-<p className="user-credits">
-  💳 Your Credits: <strong>{credits}</strong>
-</p>
-        
-        <div className="payopts">
+      <div className="pay-card">
+        <div className="pay-dotgrid" aria-hidden="true" />
+        <div className="pay-glow" aria-hidden="true" />
+
+        <button type="button" className="pay-return" onClick={closeme} aria-label="Go back">
+          <ArrowLeftOutlined />
+        </button>
+
+        <div className="pay-header">
+          <h2 className="pay-title">Choose Your Plan</h2>
+
+          <h2 className="endsin pay-promo">
+            <p className="cdown">🎟️ {counter}</p>
+          </h2>
+
+          <p className="pay-credits">
+            <span className="pay-icon-chip">💳</span>
+            Your Credits <strong>{credits}</strong>
+          </p>
+        </div>
+
+        <div className="pay-grid">
           {tiers.map((tier, index) => (
-            <div key={tier.name+index} className="pt">
-              <img src={tier.image} className="paypic"/>
-
-              <div>
-                {tier.oldPrice && <p className="oprice">{tier.oldPrice}</p>}
-                <p className="nprice">
-                   {tier.oldPrice ? "🎟️ " : ""} {tier.priceDisplay}
-                </p>
+            <div key={tier.name + index} className="pay-tier">
+              <div className="pay-tier-image-wrap">
+                <img src={tier.image} className="pay-tier-image" alt={tier.name} />
               </div>
-              <h3 className="tier">
-                <span className="goldtop"></span>
-                <span style={{marginRight: '8px'}}>{tier.icon}</span>
+
+              <div className="pay-tier-name">
+                <span className="pay-tier-icon">{tier.icon}</span>
                 {tier.name}
-              </h3>
-              <ul className="payfeatures">
+              </div>
 
-                <p style={{fontSize: "25px", margin: "10px 0"}}>
-                  {tier.icon}</p>
+              <div className="pay-tier-price">
+                {tier.oldPrice && <span className="pay-tier-price-old">{tier.oldPrice}</span>}
+                <span className="pay-tier-price-new">
+                  {tier.oldPrice ? '🎟️ ' : ''}
+                  {tier.priceDisplay}
+                </span>
+              </div>
 
+              <ul className="pay-tier-features">
                 {tier.description.map((item, idx) => (
-                  <li key={idx}><span style={{ color: "rgb(0,120,250)" }}>✔</span> {item}</li>
+                  <li key={idx} className="pay-tier-feature">
+                    <span className="pay-check">✔</span> {item}
+                  </li>
                 ))}
               </ul>
-              <button 
-                className="watch" 
-                onClick={() => tier.button !== "default" && initPayment(tier)} 
+
+              <button
+                className={`pay-cta${tier.button === 'default' ? ' pay-cta-active' : ''}`}
+                onClick={() => tier.button !== "default" && initPayment(tier)}
                 style={{ pointerEvents: tier.button === "default" ? "none" : "all" }}
               >
-                {tier.button !== "default" ? <div className="sp">{tier.button}</div> : <div>Active</div>}
+                {tier.button !== "default" ? tier.button : "Active"}
               </button>
             </div>
           ))}
         </div>
-        <div className="return" onClick={closeme}><ArrowLeftOutlined /> </div>
       </div>
+
       {loadme ? <LoadComponent opacity={1} indexed={100} mainlogo={mainlogo} /> : <LoadComponent opacity={0} indexed={-100} />}
+
+      {/* <Bottomnav active="payment" /> */}
     </div>
   );
 };
@@ -239,8 +258,8 @@ const Toaster = ({ errorMessage, setfetchError }) => {
     return () => clearTimeout(t)
   }, [])
   return (
-    <div className="toast">
-      <div className="successmessage">{errorMessage.toLowerCase()}</div>
+    <div className="pay-toast">
+      <span className="pay-toast-text">{errorMessage.toLowerCase()}</span>
     </div>
   )
 }

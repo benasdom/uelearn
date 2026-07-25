@@ -4,7 +4,7 @@ import mainlogo   from '/imgs/titled.png'
 
 
 import {
-  SmileFilled, TeamOutlined, MoneyCollectOutlined,
+  SmileFilled, TeamOutlined, MoneyCollectOutlined,PoweroffOutlined
 } from '@ant-design/icons'
 
 const styles=`
@@ -56,6 +56,13 @@ const styles=`
 
 `;
 export function Bottomnav({cname="",active=""}) {
+   const logoutUser=()=>{
+      if(confirm("Confirm to Leave")){
+        logout();
+      location.reload();
+  
+      }
+    }
   return (
     <>
     <style>{styles}</style>
@@ -77,6 +84,10 @@ export function Bottomnav({cname="",active=""}) {
             <span className="amb-nav-icon"><MoneyCollectOutlined /></span>
             <span className="amb-nav-label">Upgrade</span>
           </Link>
+          <div className={`amb-nav-item`} onClick={logoutUser} >
+            <span className="amb-nav-icon"><PoweroffOutlined /></span>
+            <span className="amb-nav-label">Logout</span>
+          </div>
         </nav>
     </div>
   
