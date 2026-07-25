@@ -1,5 +1,5 @@
 import { InfoCircleOutlined } from "@ant-design/icons"
-import './styles/job.css'
+import './styles/Job.css'
 
 const Dashboard = () => {
   return (
