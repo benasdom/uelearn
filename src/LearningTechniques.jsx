@@ -1,4 +1,4 @@
-import styles from "./learningTechniques.module.css";
+import styles from "./learningTechniques.css";
 import racoon from '/imgs/racoon.jpg'
 import PWAInstallButton from './PWAInstallButton'
 
