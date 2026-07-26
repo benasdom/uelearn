@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeftOutlined, LockOutlined, EyeOutlined, EyeInvisibleOutlined, CheckCircleFilled } from '@ant-design/icons'
-import { LocalApiPath } from './authfetch'
+import { domain, LocalApiPath } from './authfetch'
 import mainlogo from '/imgs/titled.png'
 
 import LoadComponent from "../Loadcomponent";
@@ -19,7 +19,7 @@ import './styles/Reset.css'
   expired token (shows a dedicated "link expired" screen).
   ────────────────────────────────────────────────────────────────────────
 */
-const CONFIRM_RESET_ENDPOINT = LocalApiPath + "/api/v1/auth/update/reset-password";
+const CONFIRM_RESET_ENDPOINT = {domain} + "/api/v1/auth/reset-password";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -93,7 +93,7 @@ const Reset = ({ onBack, onResetSuccess }) => {
   const goBack = () => {
     if (onBack) return onBack();
     if (window.history.length > 1) window.history.back();
-    else window.location.href = "/login";
+    else window.location.href = "/";
   };
 
   return (
