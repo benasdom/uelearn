@@ -310,7 +310,7 @@ const handleGoogleCredential = async (response) => {
     if (counter > 0) return;
     setotpLoading(true);
     try {
-      const res = await fetch(`${domain}/api/v1/send/sms/otp`, {
+      const res = await fetch(`${domain}/api/v1/otp/send/sms`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${temptoken}` },
         body:    JSON.stringify({ msisdn }),
@@ -337,7 +337,7 @@ const handleGoogleCredential = async (response) => {
     }
     setotpLoading(true);
     try {
-      const res = await fetch(`${domain}/api/v1/verification`, {
+      const res = await fetch(`${domain}/api/v1/otp/verify`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${temptoken}` },
         body:    JSON.stringify({ path: "msisdn", otp }),
@@ -628,7 +628,7 @@ const handleGoogleCredential = async (response) => {
                 <div className="mbox">
           <img className="tlogo" style={{ zIndex:2 }} src={logo} alt=""/>
 
-        <div class="title">UE LEARN</div>
+        <div className="title">UE LEARN</div>
 
 <GoogleBtn
   googleLoading={googleLoading}
@@ -681,7 +681,7 @@ const handleGoogleCredential = async (response) => {
                 <div className="mbox">
           <img className="tlogo" style={{ zIndex:2 }} src={logo} alt=""/>
 
-        <div class="title">UE LEARN</div>
+        <div className="title">UE LEARN</div>
 
 <GoogleBtn
   googleLoading={googleLoading}

@@ -6,6 +6,7 @@ import mainlogo   from '/imgs/titled.png'
 import {
   SmileFilled, TeamOutlined, MoneyCollectOutlined,PoweroffOutlined
 } from '@ant-design/icons'
+import { logout } from "./menu/authfetch"
 
 const styles=`
 
