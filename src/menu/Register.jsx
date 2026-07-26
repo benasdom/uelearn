@@ -365,7 +365,7 @@ const handleGoogleCredential = async (response) => {
     setloading(true);
     try {
       // Always show the "sent" screen regardless of response to prevent email enumeration
-      await fetch(`${domain}/api/v1/auth/update/forgot-password`, {
+      await fetch(`${domain}/api/v1/auth/forgot-password`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ email: forgotEmail.trim() }),
