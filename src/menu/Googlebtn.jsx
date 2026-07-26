@@ -40,6 +40,7 @@ export function GoogleBtn({
               fontSize: "1.1rem",
               backgroundColor: "#00aeff",
               padding: 4,
+              marginRight:5,
               borderRadius: "50%",
               color: "#ea4335",
             }}

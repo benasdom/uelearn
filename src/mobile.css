@@ -549,7 +549,7 @@ height:50px;}
      margin-right:0px;
   min-height:100dvh;
   border-radius:0px;
-      background:linear-gradient(rgb(0, 0, 0),rgb(0, 8, 22), rgba(0, 0, 0, 0.8));
+  background:black;
 
     }
     
@@ -594,8 +594,8 @@ height:50px;}
     .half{
       width:calc(100% - 10px);
       display:flex;
-      height:auto;
-      justify-content:flex-start;
+      height:100dvh;
+      justify-content:center;
       padding-bottom:40px;
     }
     .tinylogo{
