@@ -15,6 +15,7 @@ import guylogs      from "../../public/imgs/guylogs.png";
 import racoon_learn from "../../public/imgs/racoon_learn.jpg";
 import logo         from "../../public/imgs/titled.jpg";
 import { GoogleBtn } from "./Googlebtn";
+import { useNavigate } from 'react-router-dom';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ function syncWithExtension(userInfo) {
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function Register({ setshows }) {
+export default function Register() {
 
   /* ── form fields ── */
   const [email,       setemail]       = useState("");
@@ -154,9 +155,12 @@ const [googleLoading, setgoogleLoading] = useState(false); // NEW
     persistUserInfo(userData);
     syncWithExtension(userData);
   };
+const navigate = useNavigate();
 
   const activateUser = () => {
-    try { setshows(false); } catch (err) { showToast(String(err)); }
+    try { 
+navigate('/'); 
+    } catch (err) { showToast(String(err)); }
   };
 
   /* ── register ── */

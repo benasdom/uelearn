@@ -2640,6 +2640,13 @@ clip-path: polygon(78% 0%, 85% 0%, 93% 0%, 93% 0%, 89% 0%, 100% 0%, 100% 100%, 0
      50px 0px 0px rgba(0, 0, 0, 0);
 
 }
+.active{
+       color:rgb(204, 255, 0);
+  clip-path: polygon(78% 0%, 85% 0%, 93% 0%, 93% 0%, 89% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 65% 0%, 70% 0%);    box-shadow:
+     inset 0px -100px 0px rgba(0, 0, 0, 0.645),
+     -200px 0px 0px rgba(0, 0, 0, 0),
+     50px 0px 0px rgba(0, 0, 0, 0);
+}
 
 .firstitem{
   display:flex;

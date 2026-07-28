@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter as Router, Route,Routes } from 'react-router-dom';
 import App from './App.jsx'
 import './index.css'
+import Searchlist from './Searchlist.jsx';
 import About from './About.jsx';
 import Contact from './Contact.jsx';
 import Notfound from './Notfound.jsx';
@@ -10,20 +11,27 @@ import Payment from './menu/Payment.jsx';
 import Reset from './menu/Reset.jsx';
 import './mobile.css'
 import './print.css'
+import Register from './menu/Register.jsx';
+import { AppProvider } from './AppContext.jsx';
 
 const MainRouter = () => {
   const [credits, setCredits] = useState(0);
-  
+
   return (
     <Router basename="/">
-    <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/reset-password" element={<Reset />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/payment" element={<Payment setcredits={setCredits} />} />
-        <Route path="*" element={<Notfound />} />
-      </Routes>
+      <AppProvider>
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/reset-password" element={<Reset />} />
+          <Route path="/login" element={<Register />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/dashboard" element={<Searchlist />} />
+          <Route path="/dashboard/:view" element={<Searchlist />} />
+          <Route path="/payment" element={<Payment setcredits={setCredits} />} />
+          <Route path="*" element={<Notfound />} />
+        </Routes>
+      </AppProvider>
     </Router>
   );
 };

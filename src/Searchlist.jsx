@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Search from './Search'
 import Showfiles from './Showfiles'
 import pdfpic from '/imgs/pdf.png'
@@ -7,18 +7,17 @@ import {
   MoneyCollectOutlined, AppstoreOutlined, GoldFilled, DollarOutlined,
   SolutionOutlined, ScheduleOutlined, LogoutOutlined, TeamOutlined,MenuFoldOutlined,MenuUnfoldOutlined
 } from '@ant-design/icons'
-import spinner from '/imgs/loader.svg'
-import { Link } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import mainlogo from '/imgs/titled.png'
 import racoon from '/imgs/racoon_job.jpg'
 import Overview from './menu/Overview'
 import LoadComponent from './Loadcomponent'
 import ModelComponent from './ModelComponent'
-import { domain, fetchWithAuth, logout, LocalApiPath, getUserState } from './menu/authfetch'
+import { domain, fetchWithAuth, logout, LocalApiPath } from './menu/authfetch'
+import { useAppContext } from './AppContext'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-/** Returns null if localStorage is unavailable or the value is missing/malformed. */
 function readStoredUser() {
   try {
     const raw = localStorage.getItem("userInfo");
@@ -26,13 +25,6 @@ function readStoredUser() {
   } catch {
     return null;
   }
-}
-
-function writeStoredUser(patch) {
-  try {
-    const current = readStoredUser() ?? {};
-    localStorage.setItem("userInfo", JSON.stringify({ ...current, ...patch }));
-  } catch { /* quota exceeded — ignore */ }
 }
 
 /**
@@ -47,8 +39,7 @@ function parseAIResponse(response) {
 // ─── Toaster ─────────────────────────────────────────────────────────────────
 
 const Toaster = ({ errorMessage, setfetchError }) => {
-  // Side-effects belong in useEffect, never in the render body
-  useEffect(() => {
+  React.useEffect(() => {
     const id = setTimeout(() => setfetchError(false), 4000);
     return () => clearTimeout(id);
   }, [setfetchError]);
@@ -62,48 +53,58 @@ const Toaster = ({ errorMessage, setfetchError }) => {
   );
 };
 
-// ─── Menu panel ──────────────────────────────────────────────────────────────
-
-const Menucompt = ({ currentView, setcurrentView }) => (
-  <div className="menucomp">
-    <div className="menuhead">
-      <Overview currentView={currentView} setcurrentView={setcurrentView} />
-    </div>
-  </div>
-);
-
 // ─── SearchList ───────────────────────────────────────────────────────────────
 
-const SearchList = ({
-  setsearching, selectedVal, setselectedVal,
-  payload, find, setcourseName, setfind, bar,
-  setRefreshing, pdf, NetworkError,
-  setdataerror, setcredits,
-  pdflink, courseName,
-  actualDlink, credits, dataerror,
-  setpdflink, setactualDlink,
-}) => {
+const SearchList = () => {
+  const {
+    find, setfind, payload, bar,
+    courseName, setcourseName,
+    credits, setcredits,
+    pdflink, setpdflink,
+    actualDlink, setactualDlink,
+    dataerror, setdataerror,
+    selectedVal, setselectedVal,
+    setRefreshing,
+    NetworkError,
+    setsearching,
+    writeStoredUser,
+  } = useAppContext();
+
+  // currentView now lives in the URL (/dashboard/:view) instead of local
+  // state, so refreshing the page keeps you on the same panel.
+  const { view } = useParams();
+  const navigate = useNavigate();
+  const currentView = view ?? "";
+  const setcurrentView = (v) => navigate(`/dashboard/${v}`);
+
   const [spin,         setspin]         = useState(false)
   const [fetchError,   setfetchError]   = useState(false)
-  const [currentView,  setcurrentView]  = useState("")
   const [errorMessage, seterrorMessage] = useState("")
   const [selectModel,  setselectModel]  = useState(false)
   const [selectlink,   setselectlink]   = useState("")
   const [showpdf,      setshowpdf]      = useState(false)
   const [extract,      setextract]      = useState("loading...")
   const [raw,          setraw]          = useState("")
-         const [collapsed, setCollapsed] = useState(false);
+  const [collapsed,    setCollapsed]    = useState(true);
 
-  // Controls whether the side-menu panel is open
-  const [menuOpen,     setmenuOpen]     = useState(false)
+  // Controls whether the side-menu panel is open. Defaults open when landing
+  // directly on /dashboard/:view (e.g. a refresh or shared link) — otherwise
+  // the panel stays clipped shut even though currentView is already correct.
+  const [menuOpen,     setmenuOpen]     = useState(!!view)
 
-  const logoutUser=()=>{
-    if(confirm("Confirm to Leave")){
+  // Keep it open any time the URL's :view changes (covers in-app nav too,
+  // not just the initial load)
+  useEffect(() => {
+    if (view) setmenuOpen(true);
+  }, [view]);
+
+  const logoutUser = () => {
+    if (confirm("Confirm to Leave")) {
       logout();
-    location.reload();
-
+      location.reload();
     }
   }
+
   // ── open model selector ──
   const fix = (res, name) => {
     setcourseName(name);
@@ -199,7 +200,7 @@ const SearchList = ({
     } finally {
       setspin(false);
     }
-  }, [selectedVal, setcredits, setdataerror, setpdflink, setactualDlink]);
+  }, [selectedVal, setcredits, setdataerror, setpdflink, setactualDlink, writeStoredUser]);
 
   // ── filter + sort the payload list ──
   const filteredPayload =
@@ -253,81 +254,80 @@ const SearchList = ({
           <div className="bothsides">
             {/* ── side menu ── */}
 
-<div className={`sidemenubar ${collapsed ? "collapsed" : ""}`}>
-  <div
-    className="mymenubox"
-    onClick={() => setmenuOpen(true)}
-    data-open={menuOpen}
-  >
-    <div className="rbackdrop" />
-    <img className="racoonp" src={racoon} alt="" />
+            <div className={`sidemenubar ${collapsed ? "collapsed" : ""}`}>
+              <div
+                className="mymenubox"
+                onClick={() => setmenuOpen(true)}
+                data-open={menuOpen}
+              >
+                <div className="rbackdrop" />
+                <img className="racoonp" src={racoon} alt="" />
 
-    {/* Collapse toggle */}
-    <div
-      className="collapse-toggle"
-      onClick={(e) => { e.stopPropagation(); setCollapsed((c) => !c); }}
-    >
-      {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-    </div>
+                {/* Collapse toggle */}
+                <div
+                  className="collapse-toggle"
+                  onClick={(e) => { e.stopPropagation(); setCollapsed((c) => !c); }}
+                >
+                  {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                </div>
 
-    <div className="firstitem">
-      <Link to="/payment" target="_blank" rel="noopener noreferrer">
-        <div className="paid">
-          <div className="fnav">✨</div>
-          <MoneyCollectOutlined class="fnav-money" />
-          <span className="menu-label">Upgrade</span>
-          <div className="fnav">✨</div>
-        </div>
-      </Link>
-    </div>
+                <div className="firstitem">
+                  <Link to="/payment" target="_blank" rel="noopener noreferrer">
+                    <div className="paid">
+                      <div className="fnav">✨</div>
+                      <MoneyCollectOutlined class="fnav-money" />
+                      <span className="menu-label">Upgrade</span>
+                      <div className="fnav">✨</div>
+                    </div>
+                  </Link>
+                </div>
 
-    <div className="mymenu">
-      {[
-        { view: "dashboard",   icon: <AppstoreOutlined className="micon" />,    label: "General" },
-        { view: "solve",       icon: <FileProtectOutlined className="micon" />, label: "Our Products", badge: "✨" },
-        { view: "leaderboard", icon: <GoldFilled className="micon" />,          label: "Leaderboard" },
-        { view: "referal",     icon: <i style={{ fontSize: 10 }} className="fa fa-users micon" />, label: "Referal Details" },
-        { view: "earn",        icon: <DollarOutlined className="micon" />,      label: "Earn", badge: "💰" },
-        { view: "advert",      icon: <ScheduleOutlined className="micon" />,    label: "Advertise your business", badge: "📢" },
-        { view: "nss",         icon: <SolutionOutlined className="micon" />,    label: "NSS Guide" },
-        { view: "job",         icon: <TeamOutlined className="micon" />,        label: "Job Application Guide" },
-      ].map(({ view, icon, label, badge }) => (
-        <div
-          key={view}
-          className="menuitems"
-          onClick={() => { setcurrentView(view); setmenuOpen(false); }}
-          title={collapsed ? label : undefined}
-        >
-          <div className="inmenu">
-            <span>{icon}</span>
-            <small className="menu-label">{label}</small>
-            {badge && <div className="fnav">{badge}</div>}
-          </div>
-        </div>
-      ))}
-    </div>
+                <div className="mymenu">
+                  {[
+                    { view: "general",   icon: <AppstoreOutlined className="micon" />,    label: "General" },
+                    { view: "products",       icon: <FileProtectOutlined className="micon" />, label: "Our Products", badge: "✨" },
+                    { view: "leaderboard", icon: <GoldFilled className="micon" />,          label: "Leaderboard" },
+                    { view: "referal",     icon: <i style={{ fontSize: 10 }} className="fa fa-users micon" />, label: "Referal Details" },
+                    { view: "earn",        icon: <DollarOutlined className="micon" />,      label: "Earn", badge: "💰" },
+                    { view: "advert",      icon: <ScheduleOutlined className="micon" />,    label: "Advertise your business", badge: "📢" },
+                    { view: "nss",         icon: <SolutionOutlined className="micon" />,    label: "NSS Guide" },
+                    { view: "job",         icon: <TeamOutlined className="micon" />,        label: "Job Application Guide" },
+                  ].map(({ view, icon, label, badge }) => (
+                    <div
+                      key={view}
+                      className={`menuitems ${view==currentView?'active':''}`}
+                      onClick={() => { setcurrentView(view); setmenuOpen(false); }}
+                      title={collapsed ? label : undefined}
+                    >
+                      <div className="inmenu">
+                        <span>{icon}</span>
+                        <small className="menu-label">{label}</small>
+                        {badge && <div className="fnav">{badge}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-    <div className="menuitems logout" style={{ padding: 20 }} onClick={logoutUser}>
-      <div className="inmenu">
-        <LogoutOutlined className="micon" />
-        <span className="menu-label">Logout</span>
-      </div>
-    </div>
-  </div>
-</div>
+                <div className="menuitems logout" style={{ padding: 20 }} onClick={logoutUser}>
+                  <div className="inmenu">
+                    <LogoutOutlined className="micon" />
+                    <span className="menu-label">Logout</span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* ── main content ── */}
             <div className="mcontent">
-              {/* Overlay menu panel — close when clicking backdrop */}
-                   {selectModel && (
-                  <ModelComponent
-                    setselectedVal={setselectedVal}
-                    selectedVal={selectedVal}
-                    setselectModel={setselectModel}
-                    getpayload={getpayload}
-                    selectlink={selectlink}
-                  />
-                )}
+              {selectModel && (
+                <ModelComponent
+                  setselectedVal={setselectedVal}
+                  selectedVal={selectedVal}
+                  setselectModel={setselectModel}
+                  getpayload={getpayload}
+                  selectlink={selectlink}
+                />
+              )}
 
               <div
                 className="menucomp"
@@ -342,13 +342,12 @@ const SearchList = ({
               </div>
 
               <div className="listcontent">
-           
+
                 {/* ── results list ── */}
-                {!showEmptyState && filteredPayload.length > 0? (
+                {!showEmptyState && filteredPayload.length > 0 ? (
                   filteredPayload.map((item) => (
                     <div
                       className="filtered"
-                      // Use a stable unique key from the data, not the array index
                       key={item.downloadLink ?? item.description}
                       title={item.description.replace("-", ",")}
                       data-ptext="title..."

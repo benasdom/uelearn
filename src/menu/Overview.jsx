@@ -6,11 +6,11 @@ import Leaderboard from "./Leaderboard"
 import Referal from "./Referal"
 import Nss from "./Nss"
 import Job from "./Job"
-import Solve from "./Solve"
+import Products from "./products"
 import Advert from "./Advert"
 import { logout } from "./authfetch"
 export default function Overview({currentView,setcurrentView}) {
-    const views="dashboard-nss-referal-solve-earn-leaderboard-advert-job".split("-")
+    const views="general-nss-referal-products-earn-leaderboard-advert-job".split("-")
 const logoutUser=()=>{
         if(confirm("Confirm to Leave")){
           logout();
@@ -25,7 +25,7 @@ const logoutUser=()=>{
           {currentView==views[0]?<Dashboard/>
           :(currentView==views[1]?<Nss/>
           :(currentView==views[2]?<Referal/>
-          :(currentView==views[3]?<Solve/>
+          :(currentView==views[3]?<Products/>
           :(currentView==views[4]?<Earn/>
           :(currentView==views[5]?<Leaderboard/>
           :(currentView==views[6]?<Advert/>
@@ -36,7 +36,7 @@ const logoutUser=()=>{
                
                                 <div onClick={logoutUser} className="in">
                      <div className="insp"><div className="prem4"></div><span className="fnav"><i className="fa fa-power-off fa-dark"></i></span>Logout</div></div>
-                                <div onClick={()=>{setcurrentView("dashboard")}} className="in">
+                                <div onClick={()=>{setcurrentView("general")}} className="in">
                      <div className="insp"><div className="prem4"></div><span className="fnav"><i className='fa fa-windows fa-dark'></i></span>General</div></div>
 
                 <div onClick={()=>{setcurrentView("referal")}} className="in">
@@ -45,7 +45,7 @@ const logoutUser=()=>{
                      <div className="insp"><div className="prem4"></div><span className="fnav"><i className='fa fa-dollar fa-dark'></i></span>Earn</div></div>
                 <div onClick={()=>{setcurrentView("nss")}} className="in">
                      <div className="insp"><div className="prem4"></div><span className="fnav"><i className='fa fa-briefcase fa-dark'></i></span>NSS guide</div></div>
-                <div onClick={()=>{setcurrentView("solve")}} className="in">
+                <div onClick={()=>{setcurrentView("products")}} className="in">
                      <div className="insp"><div className="prem4"></div><span className="fnav"><i className='fa fa-star fa-dark'></i></span>Solve with AI</div></div>
                 <div onClick={()=>{setcurrentView("advert")}} className="in">
                      <div className="insp"><div className="prem4"></div><span className="fnav"><i className='fa fa-shop fa-dark'></i></span>Advertise</div></div>

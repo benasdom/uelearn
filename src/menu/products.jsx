@@ -1,5 +1,5 @@
 
-const Solve=()=>{
+const Products=()=>{
     
     return (
           <div className="userlevel">
@@ -11,4 +11,4 @@ const Solve=()=>{
             </div>
     )
 }
-export default Solve;
+export default Products;
