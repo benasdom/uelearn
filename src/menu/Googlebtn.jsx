@@ -43,7 +43,6 @@ export function GoogleBtn({
               padding: 4,
               marginRight:5,
               borderRadius: "50%",
-              color: "#ea4335",
             }}
           />
           Continue with Google

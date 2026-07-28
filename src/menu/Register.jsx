@@ -604,7 +604,7 @@ const handleGoogleCredential = async (response) => {
 
               {/* ══ FORGOT PASSWORD ══ */}
               {view === VIEW.FORGOT && (
-                <div className="mbox">
+                <div className="mbox" >
                   <div className="noted" style={{ cursor:"pointer" }} onClick={() => setview(VIEW.LOGIN)}>
                     <ArrowLeftOutlined className="micon"/> Back to sign in
                   </div>
@@ -634,7 +634,7 @@ const handleGoogleCredential = async (response) => {
               {view === VIEW.RESET_SENT && (
                 <div className="mbox">
                   <div style={{ textAlign:"center", fontSize:"2.5rem", lineHeight:1 }}>✉️</div>
-                  <div className="noted" style={{ flexDirection:"column", alignItems:"center", gap:6, textAlign:"center" }}>
+                  <div className="noted" style={{ flexDirection:"column",color:"cyan", alignItems:"center", gap:6, textAlign:"center" }}>
                     <strong style={{ color:"#fff", fontSize:"1rem" }}>Check your inbox</strong>
                     <span>
                       If <strong>{forgotEmail}</strong> is linked to an account, a reset link is on its way.

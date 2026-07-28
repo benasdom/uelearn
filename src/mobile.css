@@ -554,10 +554,10 @@ height:50px;}
     }
     
     .regbutton{
-      background:rgba(192, 227, 255, 0.184);
-      border:1px solid white;
-
-      color:white;
+      border:1px solid rgba(255, 255, 255, 0.009);
+      background:whitesmoke;
+      border-radius:30px;
+      color:black;
     }
 
     
@@ -566,7 +566,8 @@ height:50px;}
   padding-top:0px;
   border:1px solid transparent;
   border-radius:0px;
-  width:100%;
+      width:calc(100% - 20px);
+      margin:auto;
   height:max-content;
   left:0;
 }
@@ -592,12 +593,15 @@ height:50px;}
 }
 
     .half{
-      width:calc(100% - 10px);
       display:flex;
-      height:100dvh;
       justify-content:center;
-      padding-bottom:40px;
+      margin:auto;
+      width:auto;
+      background:rgba(255, 222, 222, 0.1);
+      border-radius:20px;
+      overflow:hidden;
     }
+
     .tinylogo{
       display:none;
     }
