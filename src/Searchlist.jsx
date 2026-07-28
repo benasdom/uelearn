@@ -14,7 +14,7 @@ import Overview from './menu/Overview'
 import LoadComponent from './Loadcomponent'
 import ModelComponent from './ModelComponent'
 import { domain, fetchWithAuth, logout, LocalApiPath } from './menu/authfetch'
-import { useAppContext } from './AppContext'
+import { useAppContext } from './Appcontext'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
