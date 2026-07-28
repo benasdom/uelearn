@@ -110,7 +110,7 @@ const Dashboard = () => {
           {initials || <i className="fa fa-user" />}
         </span>
         <span className="db-trigger-text">
-          {showprofile ? 'Back to overview' : 'Wallet & streak'}
+          {showprofile ? 'General' : 'Wallet & streak'}
         </span>
         <i
           className={`fa fa-chevron-${showprofile ? 'left' : 'right'} db-trigger-chevron`}
