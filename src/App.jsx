@@ -15,7 +15,7 @@ import { fetchWithAuth, domain, AuthError } from './menu/authfetch'
 import {LearningTechniques} from './LearningTechniques'
 import {TelegramSection}    from './Telegramsection'
 import {Bottomnav} from './Bottomnav'
-import { useAppContext } from './AppContext'
+import { useAppContext } from './Appcontext'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
