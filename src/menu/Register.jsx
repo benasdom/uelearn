@@ -786,7 +786,7 @@ const handleGoogleCredential = async (response) => {
                     <input
                       type="checkbox" checked={agreed}
                       onChange={(e) => setagreed(e.target.checked)}
-                      style={{ marginTop:3, accentColor:"#fff", cursor:"pointer", flexShrink:0 }}
+                      style={{ marginTop:3, accentColor:"cyan", cursor:"pointer", flexShrink:0 }}
                     />
                     <span style={{ fontSize:".78rem", lineHeight:1.6 }}>
                       I agree to the&nbsp;
