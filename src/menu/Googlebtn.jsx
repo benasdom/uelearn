@@ -65,7 +65,7 @@ export function GoogleBtn({
         marginTop: 25,
         position: "absolute",
         inset: 0,
-        opacity: 1,
+        opacity: 0,
         overflow: "hidden",
         display: "flex",
         alignItems: "center",
