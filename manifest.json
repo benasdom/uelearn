@@ -1,6 +1,6 @@
 {
     "name":"UE Learn",
-    "short_name":"uelearn",
+    "short_name":"UE Learn",
     "start_url":"/",
     "display":"standalone",
     "background_color":"#ffffff",
