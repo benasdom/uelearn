@@ -21,8 +21,9 @@ export function GoogleBtn({
       style={{
         display: "flex",
         alignItems: "center",
-        zIndex: 2,
         border: "1px solid #ffffff9a",
+        zIndex:0,
+        pointerEvents:"none",
         borderRadius: "5px",
         justifyContent: "center",
         fontWeight: 600,
@@ -62,14 +63,15 @@ export function GoogleBtn({
     <div
       ref={containerRef}
       style={{
-        marginTop: 25,
+        marginTop: 15,
         position: "absolute",
         inset: 0,
-        opacity: 1,
+        opacity: 0.01,
         overflow: "hidden",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        color:"black",
         pointerEvents: blocked || googleLoading ? "none" : "auto",
       }}
     />
