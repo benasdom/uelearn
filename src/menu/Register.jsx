@@ -91,6 +91,9 @@ const [googleLoading, setgoogleLoading] = useState(false); // NEW
   const [temptoken,   settemptoken]   = useState("");
   const [skipotp,     setskipotp]     = useState(false);
 
+  /* ── current terms & privacy policy version (fetched on page load) ── */
+  const [policyVersion, setpolicyVersion] = useState(null);
+
   /* ── toast ── */
   const [toast,      settoast]      = useState({ message: "", visible: false, isSuccess: false });
   const toastTimer = useRef(null);
@@ -113,6 +116,19 @@ const [googleLoading, setgoogleLoading] = useState(false); // NEW
   useEffect(() => () => {
     clearTimeout(toastTimer.current);
     clearInterval(countRef.current);
+  }, []);
+
+  /* ── fetch the currently active Terms of Service & Privacy Policy version on page load ── */
+  useEffect(() => {
+    fetch(`${domain}/api/v1/policies/current`)
+      .then((res) => res.json())
+      .then((result) => {
+        if (result?.status && Array.isArray(result.data) && result.data.length > 0) {
+          const active = result.data.find((p) => p.isActive) ?? result.data[0];
+          if (active?.version) setpolicyVersion(active.version);
+        }
+      })
+      .catch((err) => console.error("Failed to fetch active policy version:", err));
   }, []);
 
   /* ── otp countdown ── */
@@ -149,6 +165,8 @@ const [googleLoading, setgoogleLoading] = useState(false); // NEW
     try {
       const payload = { email: email.trim(), firstName: firstName.trim(), lastName: lastName.trim(), password };
       if (referalCode.trim()) payload.referalCode = referalCode.trim();
+      // Only stamp the policy version the user actually agreed to (checkbox checked at submit time)
+      if (agreed && policyVersion) payload.agreedPolicyVersion = policyVersion;
 
       const res    = await fetch(`${domain}/api/v1/auth/register`, {
         method:  "POST",
@@ -220,10 +238,16 @@ const handleGoogleCredential = async (response) => {
 
     setgoogleLoading(true); // NEW
     try {
+      const googlePayload = { id_token: response.credential };
+      // Google signup only fires from the SIGNUP view, which is blocked until `agreed` is
+      // checked (see GoogleBtn's `blocked={!agreed}` prop), so agreed is true here — but we
+      // still guard on it defensively, same as the email/password register flow.
+      if (!isLogin && agreed && policyVersion) googlePayload.agreedPolicyVersion = `${policyVersion}`;
+
       const res = await fetch(endpoint, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ id_token: response.credential }),
+        body:    JSON.stringify(googlePayload),
       });
       const result = await res.json();
 
