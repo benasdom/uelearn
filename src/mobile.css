@@ -596,7 +596,7 @@ height:50px;}
       display:flex;
       justify-content:center;
       margin:auto;
-      width:auto;
+      width:calc(100% - 30px);
       background:rgba(255, 222, 222, 0.1);
       border-radius:20px;
       overflow:hidden;
