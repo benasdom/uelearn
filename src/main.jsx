@@ -12,7 +12,7 @@ import Reset from './menu/Reset.jsx';
 import './mobile.css'
 import './print.css'
 import Register from './menu/Register.jsx';
-import { AppProvider } from './AppContext.jsx';
+import { AppProvider } from './Appcontext.jsx';
 
 const MainRouter = () => {
   const [credits, setCredits] = useState(0);
