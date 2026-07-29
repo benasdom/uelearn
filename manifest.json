@@ -1,15 +1,21 @@
 {
     "name":"UE Learn",
     "short_name":"UE Learn",
-    "start_url":"/",
+    "start_url":".",
     "display":"standalone",
-    "background_color":"#ffffff",
+    "background_color":"#1a1a2e",
     "theme_color":"#000000",
     "icons":[
+           {
+      "src":"public/imgs/logo32x32.png",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
         {
             "src":"public/imgs/logo192x192.png",
             "sizes":"192x192",
             "type":"image/png"
+
         },
          {
             "src":"public/imgs/logo512x512.png",
@@ -18,3 +24,5 @@
         }
     ]
 }
+
+
