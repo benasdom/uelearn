@@ -151,7 +151,7 @@ const SearchList = () => {
       };
 
       const solutionResponse = await fetchWithAuth(
-        `${domain}/api/v1/request/solutions`,
+        `${LocalApiPath}/api/solutions`,
         options
       );
 

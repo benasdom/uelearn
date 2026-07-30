@@ -28,13 +28,23 @@ setselectModel(false);
                 }
                 return res.json();
             })
-            .then(res => {
-                if (!res || typeof res.modelsobject !== 'object') {
-                    console.warn("Invalid response structure:", res);
+            .then(data => {
+                // /api/files/models now returns the model map directly
+                // (e.g. { "Gemini 3": "gemini-3-pro-preview", ... }),
+                // not wrapped in a `modelsobject` key.
+                if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                    console.warn("Invalid response structure:", data);
                     seterror("Invalid model data received");
                     setlisted({});
+                } else if (Object.keys(data).length === 0) {
+                    // Valid but empty — surface as an error state rather
+                    // than silently showing "No models available" forever,
+                    // since an empty catalog usually means every provider
+                    // fetch failed server-side.
+                    seterror("No models are currently available. Please retry.");
+                    setlisted({});
                 } else {
-                    setlisted(res.modelsobject);
+                    setlisted(data);
                     seterror(null);
                 }
                 setloaded(true);
@@ -76,7 +86,7 @@ return (
         ) : Object.keys(listed).length > 0 ? (
             <div className="mtop">
                 <input list="list" onChange={handleChange} className="select"/>
-                <datalist id="list" value={selectedVal}>
+                <datalist id="list">
                     {Object.keys(listed).map((a,b)=><option value={listed[a]} key={b+"-"}>{a}</option>)}
                 </datalist>
             </div>
