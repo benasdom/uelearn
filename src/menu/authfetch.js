@@ -1,7 +1,3 @@
-// export const domain       = "https://ue-past-questions-back.vercel.app";
-// // export const LocalApiPath = " http://localhost:5175";
-// export const LocalApiPath = "https://vercel-b-seven.vercel.app"
-// export const domain = "https://api.uelearn.unityelites.com";
 export const LocalApiPath =import.meta.env.VITE_AI_API_BASE_URL
 export const domain =import.meta.env.VITE_BACKEND_API_ENDPOINT
 // ─── safe localStorage helpers ────────────────────────────────────────────────
