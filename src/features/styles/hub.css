@@ -325,4 +325,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.hub-dropzone {
+  border: 1.5px dashed var(--hub-border);
+  border-radius: 14px;
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--hub-surface-2);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.hub-dropzone:hover { border-color: var(--hub-accent); }
+.hub-dropzone.is-dragover {
+  border-color: var(--hub-accent);
+  background: color-mix(in srgb, var(--hub-accent) 8%, var(--hub-surface-2));
 }

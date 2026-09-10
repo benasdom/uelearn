@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadState, saveState, makeId } from '../lib/localStore'
 import { initialCardState } from '../lib/spacedRepetition'
 import { generateExercisesFromText } from '../lib/aiGenerator'
+import { extractTextFromFile, releaseOcrWorker, classifyFile, SUPPORTED_ACCEPT } from '../lib/fileExtract'
 import './styles/hub.css'
 
 const NOTES_KEY = 'notes'
@@ -14,6 +15,21 @@ const TYPE_META = {
   flashcard: { label: 'Flashcard', icon: '🗂️' },
 }
 
+const FILE_KIND_ICON = {
+  pdf: '📄',
+  docx: '📝',
+  'legacy-doc': '📝',
+  image: '🖼️',
+  text: '📃',
+  unknown: '📁',
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function normalize(s) {
   return (s || '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
@@ -24,6 +40,13 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
   const [text, setText] = useState(initialText)
   const [sourceLabel, setSourceLabel] = useState(initialSourceLabel)
   const notes = useState(() => loadState(NOTES_KEY, []))[0]
+
+  // ── file upload state ──
+  const [files, setFiles] = useState([]) // { id, file, name, size, kind, status, progress, text, error }
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef(null)
+  const processingRef = useRef(false)
+  const appendedIdsRef = useRef(new Set())
 
   const [status, setStatus] = useState('idle') // idle | loading | reviewing | summary | saved
   const [progress, setProgress] = useState(null)
@@ -49,6 +72,74 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
   const editText = (value) => {
     setText(value)
     setSourceLabel('')
+  }
+
+  // Release the persistent OCR worker when the generator is left, not on
+  // every render — it's expensive to spin back up so it's kept alive while
+  // this screen is mounted.
+  useEffect(() => () => { releaseOcrWorker() }, [])
+
+  // Sequential extraction queue: processingRef is a plain ref (not state) so
+  // the guard is synchronous and immune to React StrictMode's double-invoke
+  // of effects in development — without it, two files could start
+  // extracting (and two OCR workers spin up) at once.
+  useEffect(() => {
+    if (processingRef.current) return
+    const next = files.find((f) => f.status === 'pending')
+    if (!next) return
+
+    processingRef.current = true
+    setFiles((prev) => prev.map((f) => (f.id === next.id ? { ...f, status: 'extracting', progress: 0 } : f)))
+
+    extractTextFromFile(next.file, (p) => {
+      setFiles((prev) => prev.map((f) => (f.id === next.id ? { ...f, progress: p } : f)))
+    })
+      .then((extracted) => {
+        setFiles((prev) => prev.map((f) => (f.id === next.id ? { ...f, status: 'done', progress: 1, text: extracted } : f)))
+      })
+      .catch((err) => {
+        setFiles((prev) => prev.map((f) => (f.id === next.id ? { ...f, status: 'error', error: err.message } : f)))
+      })
+      .finally(() => {
+        processingRef.current = false
+      })
+  }, [files])
+
+  // As files finish extracting, fold their text into the shared input box
+  // (append-only, each file exactly once) so the AI Generator's existing
+  // paste/generate pipeline needs no changes to work with uploads.
+  useEffect(() => {
+    const toAppend = files.filter((f) => f.status === 'done' && !appendedIdsRef.current.has(f.id))
+    if (toAppend.length === 0) return
+
+    toAppend.forEach((f) => appendedIdsRef.current.add(f.id))
+    const pieces = toAppend.map((f) => (files.length > 1 ? `--- ${f.name} ---\n${f.text}` : f.text))
+    setText((prev) => (prev.trim() ? `${prev}\n\n${pieces.join('\n\n')}` : pieces.join('\n\n')))
+  }, [files])
+
+  const handleFilesSelected = (fileList) => {
+    const incoming = Array.from(fileList || [])
+    if (incoming.length === 0) return
+    const entries = incoming.map((file) => ({
+      id: makeId(),
+      file,
+      name: file.name,
+      size: file.size,
+      kind: classifyFile(file),
+      status: 'pending',
+      progress: 0,
+      text: '',
+      error: null,
+    }))
+    setFiles((prev) => [...prev, ...entries])
+  }
+
+  const removeFile = (id) => {
+    setFiles((prev) => prev.filter((f) => f.id !== id))
+  }
+
+  const retryFile = (id) => {
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, status: 'pending', progress: 0, error: null } : f)))
   }
 
   const generate = async () => {
@@ -163,7 +254,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
       <div className="hub-page">
         <p className="hub-eyebrow">AI GENERATOR</p>
         <h2 className="hub-title">Saved ✅</h2>
-        <div className="hub-card" style={{paddingBottom:50}}>
+        <div className="hub-card">
           {savedInto.testId && (
             <div className="hub-row" style={{ marginBottom: savedInto.deckId ? 10 : 0 }}>
               <div style={{ fontSize: 13 }}>{savedInto.questionCount} question{savedInto.questionCount !== 1 ? 's' : ''} saved to Mock Tests</div>
@@ -198,7 +289,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
         <p className="hub-eyebrow">AI GENERATOR</p>
         <h2 className="hub-title">Results</h2>
 
-        <div className="hub-card" style={{ textAlign: 'center' ,paddingBottom:50}}>
+        <div className="hub-card" style={{ textAlign: 'center' }}>
           {quizItems.length > 0 ? (
             <>
               <div className="hub-score-ring" style={{ '--pct': pct }}>
@@ -220,7 +311,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
           {keptCount} of {items.length} selected to save — go back to change your picks.
         </div>
 
-        <div className="hub-card" style={{paddingBottom:50}}>
+        <div className="hub-card">
           {selectedQuizItems.length > 0 && (
             <div style={{ marginBottom: selectedCards.length > 0 ? 12 : 0 }}>
               <label style={{ fontSize: 12, color: 'var(--hub-text-muted)' }}>Mock test title</label>
@@ -280,7 +371,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
           <div className="hub-progress-fill" style={{ width: `${((index + 1) / items.length) * 100}%` }} />
         </div>
 
-        <div className="hub-card" style={{paddingBottom:50}}>
+        <div className="hub-card">
           <div className="hub-row" style={{ alignItems: 'flex-start', marginBottom: 10 }}>
             <span className="hub-badge-pill">{meta.icon} {meta.label}</span>
             <label className="hub-switch" title="Save this one" onClick={(e) => e.stopPropagation()}>
@@ -339,15 +430,16 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
       <p className="hub-eyebrow">NEW</p>
       <h2 className="hub-title">AI Generator</h2>
       <p style={{ fontSize: 13, color: 'var(--hub-text-muted)', marginTop: -10, marginBottom: 16 }}>
-        Paste notes or course material and get multiple-choice, fill-in-the-blank, and flashcard questions generated automatically.
+        Paste notes, upload a PDF/Word doc/image, or pick a saved note — get multiple-choice, fill-in-the-blank, and flashcard questions generated automatically.
       </p>
 
-      {notes.length > 0 && (
-        <div className="hub-tabs">
-          <button className={`hub-tab ${sourceTab === 'paste' ? 'active' : ''}`} onClick={() => setSourceTab('paste')}>Paste text</button>
+      <div className="hub-tabs">
+        <button className={`hub-tab ${sourceTab === 'paste' ? 'active' : ''}`} onClick={() => setSourceTab('paste')}>Paste text</button>
+        <button className={`hub-tab ${sourceTab === 'upload' ? 'active' : ''}`} onClick={() => setSourceTab('upload')}>Upload file</button>
+        {notes.length > 0 && (
           <button className={`hub-tab ${sourceTab === 'notes' ? 'active' : ''}`} onClick={() => setSourceTab('notes')}>From a note</button>
-        </div>
-      )}
+        )}
+      </div>
 
       {sourceTab === 'notes' ? (
         <>
@@ -360,6 +452,80 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
               <span className="hub-badge-pill">Use →</span>
             </div>
           ))}
+        </>
+      ) : sourceTab === 'upload' ? (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={SUPPORTED_ACCEPT}
+            style={{ display: 'none' }}
+            onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = '' }}
+          />
+          <div
+            className={`hub-dropzone ${dragOver ? 'is-dragover' : ''}`}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragOver(false)
+              handleFilesSelected(e.dataTransfer.files)
+            }}
+          >
+            <div style={{ fontSize: 28 }}>📤</div>
+            <div style={{ fontWeight: 700, marginTop: 6 }}>Drop files here or click to browse</div>
+            <div style={{ fontSize: 12, color: 'var(--hub-text-muted)', marginTop: 4 }}>
+              PDF, Word (.docx), images (PNG/JPG), or plain text — up to 25MB each
+            </div>
+          </div>
+
+          {files.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {files.map((f) => (
+                <div key={f.id} className="hub-list-item">
+                  <div className="hub-row" style={{ alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 18 }}>{FILE_KIND_ICON[f.kind] || FILE_KIND_ICON.unknown}</span>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--hub-text-muted)' }}>{formatBytes(f.size)}</div>
+
+                        {(f.status === 'pending' || f.status === 'extracting') && (
+                          <div style={{ marginTop: 6 }}>
+                            <div className="hub-progress-track">
+                              <div className="hub-progress-fill" style={{ width: `${Math.max(6, Math.round(f.progress * 100))}%` }} />
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--hub-text-muted)', marginTop: 4 }}>
+                              {f.kind === 'image' ? 'Reading text (OCR)…' : 'Extracting text…'} {Math.round(f.progress * 100)}%
+                            </div>
+                          </div>
+                        )}
+                        {f.status === 'done' && (
+                          <div style={{ fontSize: 11, color: 'var(--hub-success)', marginTop: 4 }}>
+                            ✅ Added {f.text.length.toLocaleString()} characters to the text below
+                          </div>
+                        )}
+                        {f.status === 'error' && (
+                          <div style={{ fontSize: 11, color: 'var(--hub-danger)', marginTop: 4 }}>
+                            ⚠️ {f.error} <button className="hub-btn hub-btn-ghost" style={{ padding: '2px 8px', fontSize: 11, marginLeft: 4 }} onClick={() => retryFile(f.id)}>Retry</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button className="hub-btn hub-btn-danger" style={{ padding: '6px 10px' }} onClick={() => removeFile(f.id)}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {text.trim() && (
+            <button className="hub-btn hub-btn-ghost" style={{ marginTop: 4, width: '100%' }} onClick={() => setSourceTab('paste')}>
+              Review extracted text →
+            </button>
+          )}
         </>
       ) : (
         <>
