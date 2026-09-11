@@ -528,10 +528,10 @@ const SearchList = () => {
 
                 {/* ── results list ── */}
                 {!showEmptyState && filteredPayload.length > 0 ? (
-                  filteredPayload.map((item) => (
+                  filteredPayload.map((item,b) => (
                     <div
                       className="filtered"
-                      key={item.downloadLink ?? item.description}
+                      key={(item.downloadLink ?? item.description)+b}
                       title={item.description.replace("-", ",")}
                       data-ptext="title..."
                       data-texts="details..."

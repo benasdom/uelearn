@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
-export default function PdfViewer({ url, setIframeLoaded }) {
+export default function 
+PdfViewer({ url, setIframeLoaded }) {
   const [isMobile, setIsMobile] = useState(false);
   const fullUrl = `${url}`;
 
@@ -23,7 +24,7 @@ export default function PdfViewer({ url, setIframeLoaded }) {
         className="loadpdf"
         src={`https://docs.google.com/viewer?url=${fullUrl}`}
         title="Mobile View"
-        style={{ width: "100%", height: "100vh", border: "none" }}
+        style={{ width: "100%", height: "100vh", border: "none" ,opacity:"0"}}
 onLoad={() => setTimeout(() => setIframeLoaded(true), 4000)}
 
       />
