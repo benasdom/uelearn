@@ -56,24 +56,30 @@ function getCachedSolution(namedfile) {
   }
 }
 
-/** Most recently viewed solution across all cached files, or null. */
-export function getLastSolution() {
+/** Every solution cached locally, newest first. Reading this list — and
+ *  opening any item in it — never touches the network, so it stays usable
+ *  even while a different solution is mid-fetch elsewhere in the app. */
+export function getAllCachedSolutions() {
   try {
-    let best = null;
+    const all = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key || !key.startsWith(SOLUTION_CACHE_PREFIX)) continue;
       const data = JSON.parse(localStorage.getItem(key));
       if (!data) continue;
       const namedfile = key.slice(SOLUTION_CACHE_PREFIX.length);
-      if (!best || (data.savedAt ?? 0) > best.savedAt) {
-        best = { ...data, namedfile };
-      }
+      all.push({ ...data, namedfile });
     }
-    return best;
+    return all.sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0));
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** Most recently viewed solution across all cached files, or null. */
+export function getLastSolution() {
+  const all = getAllCachedSolutions();
+  return all.length ? all[0] : null;
 }
 
 /**
@@ -465,15 +471,17 @@ const SearchList = () => {
 
                 <div className="mymenu">
                   {[
+                    // Learning Hub leads the menu — it's the most-used surface now.
+                    { view: "hub",         icon: <TrophyOutlined className="micon" />,      label: "Learning Hub", badge: <AimOutlined /> },
+                    { view: "solutions",   icon: <SolutionOutlined className="micon" />,    label: "Solutions" },
                     { view: "general",   icon: <AppstoreOutlined className="micon" />,    label: "General" },
                     { view: "products",       icon: <FileProtectOutlined className="micon" />, label: "Our Products", badge: <GoldStar size={14} /> },
                     { view: "leaderboard", icon: <GoldFilled className="micon" />,          label: "Leaderboard" },
                     { view: "referal",     icon: <i style={{ fontSize: 10 }} className="fa fa-users micon" />, label: "Referal Details" },
                     { view: "earn",        icon: <DollarOutlined className="micon" />,      label: "Earn", badge: <GoldCashStack size={14} /> },
                     { view: "advert",      icon: <ScheduleOutlined className="micon" />,    label: "Advertise your business", badge: <SoundOutlined /> },
-                    { view: "nss",         icon: <SolutionOutlined className="micon" />,    label: "NSS Guide" },
+                    { view: "nss",         icon: <i className="fa fa-book micon" />,        label: "NSS Guide" },
                     { view: "job",         icon: <TeamOutlined className="micon" />,        label: "Job Application Guide" },
-                    { view: "hub",         icon: <TrophyOutlined className="micon" />,      label: "Learning Hub", badge: <AimOutlined /> },
                   ].map(({ view, icon, label, badge }) => (
                     <div
                       key={view}
@@ -513,7 +521,7 @@ const SearchList = () => {
               )}
 
               <div
-                className="menucomp"
+                className={`menucomp${currentView === "hub" ? " menucomp--hub" : ""}`}
                 style={menuOpen
                   ? { clipPath: "polygon(0 0, 100% 0, 100% 100%, 0 100%)", pointerEvents: "all" }
                   : { clipPath: "polygon(0 0, 0% 0, 0% 100%, 0 100%)", pointerEvents: "none" }

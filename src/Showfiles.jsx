@@ -13,6 +13,10 @@ import {
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { marked } from 'marked'
 import { Link } from 'react-router-dom'
+import {
+  GraduationCap, FolderOpen, LayoutGrid, Sparkles, Trophy,
+  Wallet, Megaphone, BookOpen, Briefcase,
+} from 'lucide-react'
 import { domain, fetchWithAuth, LocalApiPath } from './menu/authfetch'
 import racoon_learn from '/imgs/racoon_learn.jpg'
 import racoon_save from '/imgs/save.jpg'
@@ -23,6 +27,10 @@ import PdfViewer from './menu/PdfViewer'
 const MAX_RECENTS = 5
 const FETCH_TIMEOUT_MS = 8000
 const SEARCH_DEBOUNCE_MS = 400
+// /api/v1/solutions/queries is paginated server-side — a fixed page size
+// keeps "Load more" pages predictable instead of relying on the backend's
+// own default.
+const QUERIES_PAGE_SIZE = 20
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
@@ -57,11 +65,51 @@ const getAuthTokens = () => {
   try {
     const stored = JSON.parse(localStorage.getItem('userInfo') || '{}')
     if (!stored?.accessToken) throw new Error('Missing access token. Please login again.')
-    return { accessToken: stored.accessToken, refreshToken: stored.refreshToken }
+    // NOTE: assumes the stored user object's id field is `id` (matches the
+    // Django UserModel pk exposed by the serializer). If your login
+    // response stores it under a different key, adjust this line.
+    return { accessToken: stored.accessToken, refreshToken: stored.refreshToken, userId: stored.id }
   } catch (e) {
     throw new Error(e.message || 'Auth error. Please login again.')
   }
 }
+
+// ─── Quick-nav (jump to any other feature without losing this solution) ───────
+// Showfiles renders as a fullscreen overlay above the dashboard's own side
+// menu, so without this strip the rest of the app is unreachable while a
+// solution is open. Each link simply changes route — the AI answer stays
+// cached, so coming back re-opens instantly from local storage.
+const QUICKNAV_ITEMS = [
+  { to: '/dashboard/hub',         label: 'Learning Hub', Icon: GraduationCap },
+  { to: '/dashboard/solutions',   label: 'Solutions',    Icon: FolderOpen },
+  { to: '/dashboard/general',     label: 'General',      Icon: LayoutGrid },
+  { to: '/dashboard/products',    label: 'Solve with AI', Icon: Sparkles },
+  { to: '/dashboard/leaderboard', label: 'Leaderboard',  Icon: Trophy },
+  { to: '/dashboard/earn',        label: 'Earn',         Icon: Wallet },
+  { to: '/dashboard/nss',         label: 'NSS Guide',    Icon: BookOpen },
+  { to: '/dashboard/job',         label: 'Job Guide',    Icon: Briefcase },
+  { to: '/dashboard/advert',      label: 'Advertise',    Icon: Megaphone },
+]
+
+const QuickNav = () => (
+  <div className="sf-quicknav" role="navigation" style={{display:"none"}} aria-label="Other features">
+    {QUICKNAV_ITEMS.map(({ to, label, Icon }) => (
+      <Link key={to} to={to} className="sf-quicknav__item" title={label}>
+        <Icon size={16} strokeWidth={1.8} />
+      </Link>
+    ))}
+  </div>
+)
+
+// Plain outline SVG spark — replaces the emoji glyph on the "Solutions" pill.
+const SparkIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M12 2.5c.6 3.4 1.7 5.6 3.2 7.1 1.5 1.5 3.7 2.6 7.1 3.2-3.4.6-5.6 1.7-7.1 3.2-1.5 1.5-2.6 3.7-3.2 7.1-.6-3.4-1.7-5.6-3.2-7.1-1.5-1.5-3.7-2.6-7.1-3.2 3.4-.6 5.6-1.7 7.1-3.2 1.5-1.5 2.6-3.7 3.2-7.1Z"
+      stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"
+    />
+  </svg>
+)
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -200,6 +248,9 @@ const Showfiles = ({
   const [queryError, setQueryError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [isSearching, setIsSearching] = useState(false)
+  const [queriesPage, setQueriesPage] = useState(1)
+  const [hasMoreQueries, setHasMoreQueries] = useState(false)
+  const [isLoadingMoreQueries, setIsLoadingMoreQueries] = useState(false)
   const [activeTab, setActiveTab] = useState('saved') // 'saved' | 'recent'
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [expanded, setExpanded] = useState(false) // solutions drawer: half-screen vs. full-width
@@ -209,26 +260,36 @@ const Showfiles = ({
 
   // ── Fetch solutions (all or filtered) ───────────────────────────────────
 
-  const fetchSolutions = useCallback(async (term = '') => {
+  // `page` defaults to 1 (a fresh search/filter/initial load, replacing the
+  // list); pass `{ append: true, page: n }` for "Load more", which appends
+  // instead of replacing and drives its own loading flag so the existing
+  // list stays visible underneath the in-progress fetch.
+  const fetchSolutions = useCallback(async (term = '', { page = 1, append = false } = {}) => {
     controllerRef.current?.abort()
     controllerRef.current = new AbortController()
 
     const isTerm = term.trim().length > 0
-    isTerm ? setIsSearching(true) : setLoadingQueries(true)
+    if (append) {
+      setIsLoadingMoreQueries(true)
+    } else {
+      isTerm ? setIsSearching(true) : setLoadingQueries(true)
+    }
     setQueryError('')
 
-    let accessToken, refreshToken
+    let accessToken, refreshToken, userId
     try {
-      ;({ accessToken, refreshToken } = getAuthTokens())
+      ;({ accessToken, refreshToken, userId } = getAuthTokens())
     } catch (e) {
       setQueryError(e.message)
-      isTerm ? setIsSearching(false) : setLoadingQueries(false)
+      if (append) setIsLoadingMoreQueries(false)
+      else isTerm ? setIsSearching(false) : setLoadingQueries(false)
       return
     }
 
-    const url = isTerm
-      ? `${domain}/api/v1/solutions/queries?courseName=${encodeURIComponent(term.trim())}`
-      : `${domain}/api/v1/solutions/queries`
+    const params = new URLSearchParams({ page: String(page), pageSize: String(QUERIES_PAGE_SIZE) })
+    if (userId) params.set('userId', userId)
+    if (isTerm) params.set('courseName', term.trim())
+    const url = `${domain}/api/v1/solutions/queries?${params.toString()}`
 
     const timeout = setTimeout(() => controllerRef.current?.abort(), FETCH_TIMEOUT_MS)
 
@@ -242,14 +303,26 @@ const Showfiles = ({
         : result?.data?.solutions != null  ? result.data
         : null
 
-      setFounditems(normalised || { solutions: [], solutions_count: 0 })
+      const newSolutions = normalised?.solutions ?? []
+      // Older/un-paginated backends won't send hasNext at all — treat that
+      // as "no more pages" rather than showing a Load more button forever.
+      const nextHasMore = normalised?.hasNext ?? false
+
+      setFounditems((prev) =>
+        append
+          ? { ...normalised, solutions: [...(prev?.solutions ?? []), ...newSolutions] }
+          : (normalised || { solutions: [], solutions_count: 0 })
+      )
+      setHasMoreQueries(nextHasMore)
+      setQueriesPage(page)
     } catch (err) {
       if (err.name !== 'AbortError') {
         setQueryError(isTerm ? 'Search failed. Try again.' : 'Could not load saved queries.')
       }
     } finally {
       clearTimeout(timeout)
-      isTerm ? setIsSearching(false) : setLoadingQueries(false)
+      if (append) setIsLoadingMoreQueries(false)
+      else isTerm ? setIsSearching(false) : setLoadingQueries(false)
     }
   }, [])
 
@@ -267,6 +340,11 @@ const Showfiles = ({
     clearTimeout(searchDebounceRef.current)
     searchDebounceRef.current = setTimeout(() => fetchSolutions(val), SEARCH_DEBOUNCE_MS)
   }, [fetchSolutions])
+
+  const handleLoadMoreQueries = useCallback(() => {
+    if (!hasMoreQueries || isLoadingMoreQueries) return
+    fetchSolutions(searchTerm, { page: queriesPage + 1, append: true })
+  }, [fetchSolutions, hasMoreQueries, isLoadingMoreQueries, queriesPage, searchTerm])
 
   // Save to recents when extract resolves
   useEffect(() => {
@@ -316,6 +394,7 @@ const Showfiles = ({
               <i className="fa fa-times" />
             </button>
             <img src={mainlogo} className="sf-logo" alt="logo" />
+            <QuickNav />
             <div className="sf-pdf-topbar__actions">
               {(iframeLoaded || raw) ? (
                 <>
@@ -339,7 +418,7 @@ const Showfiles = ({
                     <MoneyCollectOutlined /> Top up
                   </Link>
                   <div className="sf-pill-btn sf-pill-btn--accent" onClick={() => setSolnsOpen(true)}>
-                    ✨Solutions
+                    <SparkIcon /> Solutions
                   </div>
                 </>
               ) : (
@@ -454,20 +533,32 @@ const Showfiles = ({
                       ) : queryError ? (
                         <div className="sf-list-empty sf-list-empty--error">{queryError}</div>
                       ) : founditems?.solutions?.length > 0 ? (
-                        founditems.solutions.map((x, y) => (
-                          <div
-                            className={`sf-list-item ${savedquery?.id === x.id ? 'sf-list-item--active' : ''}`}
-                            onClick={() => { setSavedquery(x); setRawView(true) }}
-                            key={x.id ?? y}
-                          >
-                            <span className="sf-list-item__initial">{(x.course||'?')[0].toUpperCase()}</span>
-                            <div className="sf-list-item__info">
-                              <span className="sf-list-item__label">{x.course}</span>
-                              <span className="sf-list-item__meta">Saved query</span>
+                        <>
+                          {founditems.solutions.map((x, y) => (
+                            <div
+                              className={`sf-list-item ${savedquery?.id === x.id ? 'sf-list-item--active' : ''}`}
+                              onClick={() => { setSavedquery(x); setRawView(true) }}
+                              key={x.id ?? y}
+                            >
+                              <span className="sf-list-item__initial">{(x.course||'?')[0].toUpperCase()}</span>
+                              <div className="sf-list-item__info">
+                                <span className="sf-list-item__label">{x.course}</span>
+                                <span className="sf-list-item__meta">Saved query</span>
+                              </div>
+                              <i className="fa fa-chevron-right sf-list-item__arrow" />
                             </div>
-                            <i className="fa fa-chevron-right sf-list-item__arrow" />
-                          </div>
-                        ))
+                          ))}
+                          {hasMoreQueries && (
+                            <button
+                              type="button"
+                              className="sf-load-more"
+                              onClick={handleLoadMoreQueries}
+                              disabled={isLoadingMoreQueries}
+                            >
+                              {isLoadingMoreQueries ? 'Loading…' : 'Load more'}
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <div className="sf-list-empty">
                           {searchTerm.trim() ? `No results for "${searchTerm.trim()}"` : 'No saved queries yet'}
@@ -632,6 +723,40 @@ const STYLES = `
   }
   .sf-pdf-topbar__actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   .sf-logo { height: 28px; object-fit: contain; }
+
+  /* ── Quick-nav strip: jump to any other feature without losing this solution ── */
+  .sf-quicknav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(148,163,255,0.14);
+    overflow-x: auto;
+    scrollbar-width: none;
+    max-width: 320px;
+  }
+  .sf-quicknav::-webkit-scrollbar { display: none; }
+  .sf-quicknav__item {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    color: rgba(232,232,232,0.65);
+    transition: color .15s ease, background .15s ease, box-shadow .15s ease;
+  }
+  .sf-quicknav__item:hover {
+    color: #0d0d0f;
+    background: linear-gradient(135deg, #22d3ee, #a78bfa);
+    box-shadow: 0 0 12px rgba(34,211,238,0.45);
+  }
+  @media (max-width: 900px) {
+    .sf-quicknav { max-width: 140px; }
+  }
   .sf-pdf-body {
     flex: 1;
     overflow: hidden;
@@ -938,6 +1063,23 @@ const STYLES = `
     gap: 6px;
   }
   .sf-list-empty--error { color: #f87171; }
+
+  .sf-load-more {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1px solid #2a2a38;
+    background: transparent;
+    color: #a5b4fc;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  .sf-load-more:hover:not(:disabled) { background: #16161e; border-color: #4338ca; }
+  .sf-load-more:disabled { color: #444; cursor: default; }
 
   /* ── Content area ── */
   .sf-content {

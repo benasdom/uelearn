@@ -3,6 +3,8 @@ import { loadState, saveState, makeId } from '../lib/localStore'
 import { initialCardState } from '../lib/spacedRepetition'
 import { generateExercisesFromText } from '../lib/aiGenerator'
 import { extractTextFromFile, releaseOcrWorker, classifyFile, SUPPORTED_ACCEPT } from '../lib/fileExtract'
+import { bumpGenerations } from '../lib/activity'
+import SaveToSolutions from './SaveToSolutions'
 import './styles/hub.css'
 
 const NOTES_KEY = 'notes'
@@ -186,6 +188,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
       setDeckName(cardCount ? `AI flashcards — ${new Date().toLocaleDateString()}` : '')
 
       setStatus('reviewing')
+      bumpGenerations()
     } catch (err) {
       setError(err.message || 'Something went wrong generating questions.')
       setStatus('idle')
@@ -283,11 +286,21 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
     const knewCount = cardItems.filter((it) => it.graded === 'knew').length
     const keptCount = items.filter((it) => it.keep).length
     const pct = quizItems.length > 0 ? Math.round((correctCount / quizItems.length) * 100) : null
+    const transcript = items
+      .map((it, i) => {
+        if (it.kind === 'mcq') return `${i + 1}. ${it.q}\nOptions: ${it.options.join(' | ')}\nAnswer: ${it.options[it.correct]}${it.explanation ? `\n${it.explanation}` : ''}`
+        if (it.kind === 'fillIn') return `${i + 1}. ${it.q}\nAnswer: ${it.correctAnswer}${it.explanation ? `\n${it.explanation}` : ''}`
+        return `${i + 1}. ${it.front}\n${it.back}`
+      })
+      .join('\n\n')
 
     return (
       <div className="hub-page">
         <p className="hub-eyebrow">AI GENERATOR</p>
-        <h2 className="hub-title">Results</h2>
+        <div className="hub-row" style={{ alignItems: 'flex-start' }}>
+          <h2 className="hub-title">Results</h2>
+          <SaveToSolutions title={sourceLabel || `AI generator — ${new Date().toLocaleDateString()}`} content={transcript} modelName="ai-generator" />
+        </div>
 
         <div className="hub-card" style={{ textAlign: 'center' }}>
           {quizItems.length > 0 ? (

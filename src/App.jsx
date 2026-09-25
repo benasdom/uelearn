@@ -16,7 +16,6 @@ import {LearningTechniques} from './LearningTechniques'
 import {TelegramSection}    from './Telegramsection'
 import {Bottomnav} from './Bottomnav'
 import { useAppContext } from './Appcontext'
-import { getLastSolution } from './Searchlist'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -66,13 +65,6 @@ function App() {
     };
     window.addEventListener('auth:session-expired', onSessionExpired);
     return () => window.removeEventListener('auth:session-expired', onSessionExpired);
-  }, []);
-
-  // ── last-viewed solution (top-nav "Solutions" link falls back to the
-  //    dashboard when nothing's cached yet, so it's never a dead link) ──
-  const [lastSolution, setlastSolution] = useState(null);
-  useEffect(() => {
-    setlastSolution(getLastSolution());
   }, []);
 
   // ── countdown timer — runs once, cleans up ──
@@ -197,8 +189,8 @@ function App() {
           <img className="reglate2" src={mainlogo} alt="UELearn logo" />
           <Link to="/about"><li>ABOUT</li></Link>
           <Link to="/contact"><li>CONTACT</li></Link>
-          <Link to={lastSolution ? `/dashboard/solution/${lastSolution.namedfile}` : "/dashboard"}>
-            <li title={lastSolution?.courseName || "Find or view a solution"}>SOLUTIONS</li>
+          <Link to="/dashboard/solutions">
+            <li title="View your saved solutions">SOLUTIONS</li>
           </Link>
           <Link to="/payment" target="_blank" rel="noopener noreferrer">
             <li>UPGRADE</li>

@@ -9,8 +9,6 @@ import {
 import { logout } from "./menu/authfetch"
 import ThemeToggle from "./features/ThemeToggle"
 import PWAInstallButton from "./PWAInstallButton"
-import { getLastSolution } from "./Searchlist"
-import { useState, useEffect } from "react"
 
 const styles=`
 
@@ -76,14 +74,6 @@ export function Bottomnav({cname="",active=""}) {
       }
     }
 
-   // Computed here (rather than passed as a prop) so every page that
-   // renders Bottomnav — not just App.jsx — gets the shortcut for free
-   // once a solution has been viewed at least once.
-   const [lastSolution, setLastSolution] = useState(null);
-   useEffect(() => {
-     setLastSolution(getLastSolution());
-   }, []);
-
   return (
     <>
     <style>{styles}</style>
@@ -94,16 +84,16 @@ export function Bottomnav({cname="",active=""}) {
             <span className="amb-nav-icon"><img className="amb-nav-logo" src={mainlogo} alt="" /></span>
             <span className="amb-nav-label">Home</span>
           </Link>
-          {lastSolution && (
-            <Link
-              to={`/dashboard/solution/${lastSolution.namedfile}`}
-              className={`amb-nav-item ${active=="solutions"?"active":""}`}
-              title={lastSolution.courseName || "Your last solution"}
-            >
-              <span className="amb-nav-icon"><SolutionOutlined /></span>
-              <span className="amb-nav-label">Solutions</span>
-            </Link>
-          )}
+          {/* Opens the Solutions browser (your locally saved solutions) —
+              it never jumps straight into a specific solution's content. */}
+          <Link
+            to="/dashboard/solutions"
+            className={`amb-nav-item ${active=="solutions"?"active":""}`}
+            title="Your saved solutions"
+          >
+            <span className="amb-nav-icon"><SolutionOutlined /></span>
+            <span className="amb-nav-label">Solutions</span>
+          </Link>
           <Link to="/about" className={`amb-nav-item ${active=="about"?"active":""}`}>
             <span className="amb-nav-icon"><SmileFilled /></span>
             <span className="amb-nav-label">About</span>

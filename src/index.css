@@ -1872,6 +1872,14 @@ height:150px;
  backdrop-filter: blur(2rem);
  height:100%;
  z-index: 100;
+ /* This overlay only *represents* a background fetch (e.g. re-loading a
+    solution from the network) — it must never trap clicks meant for
+    always-available local UI (the side menu, a locally cached solution,
+    etc). The overlay's own content re-enables pointer events on itself. */
+ pointer-events: none;
+}
+.texttit .mtitle{
+ pointer-events: auto;
 }
 .loaded{
   opacity:0;
@@ -2199,6 +2207,11 @@ clip-path: polygon(0 0, 0% 0, 0% 100%, 0 100%);
 
 
 }
+
+/* The Learning Hub is the flagship surface now — on desktop it takes over
+   the whole viewport instead of living in the small clipped sheet used for
+   every other menu panel. Mobile keeps the original sheet behaviour. */
+
 .showcomp{
   width:100% !important;
   padding:10px !important;
@@ -2875,6 +2888,7 @@ z-index:0 !important;
     justify-content: flex-start; 
     height: 40px;
     width: 100%;
+    z-index: 50;
     padding: 5px;
     overflow-x: auto; 
     -webkit-overflow-scrolling: touch; 
