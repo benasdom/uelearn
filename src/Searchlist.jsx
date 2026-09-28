@@ -214,10 +214,14 @@ const SearchList = () => {
   }
 
   // ── open model selector ──
-  const fix = (res, name) => {
+  // `fileId` is the paper's driveFileId (from /papers/folder-contents), not
+  // a filename — the old flow stashed a URL like "...?x=<filename>" here
+  // and getpayload() split it back out; now we carry the id straight
+  // through, no encoding/decoding needed.
+  const fix = (fileId, name) => {
     setcourseName(name);
     setselectModel(true);
-    setselectlink(res);
+    setselectlink(fileId);
   };
 
   // Filenames we've already kicked off a load for this session — prevents
@@ -227,12 +231,12 @@ const SearchList = () => {
   // stray "Unexpected response format" from the duplicate call).
   const loadedFilesRef = useRef(new Set());
 
-  // ── fetch PDF + AI solution for a given namedfile, then navigate to its
-  //    own route (/dashboard/solution/:filename) so a refresh keeps it.
-  //    `name` is the course description to remember/cache alongside it;
-  //    pass null when restoring (courseName is already set from cache).
-  const loadSolution = useCallback(async (namedfile, modelVal, name) => {
-    loadedFilesRef.current.add(namedfile);
+  // ── fetch AI solution for a given driveFileId, then navigate to its own
+  //    route (/dashboard/solution/:fileId) so a refresh keeps it.
+  //    `name` is the course name to remember/cache alongside it; pass null
+  //    when restoring (courseName is already set from cache).
+  const loadSolution = useCallback(async (fileId, modelVal, name) => {
+    loadedFilesRef.current.add(fileId);
     const storedUser   = readStoredUser();
     const premiumstatus = storedUser?.pStatus ?? null;
 
@@ -243,36 +247,44 @@ const SearchList = () => {
     seterrorMessage("");
     if (name) setcourseName(name);
 
+    // The Node backend's download proxy (/api/files/download/:fileId) works
+    // for any driveFileId regardless of how it was found, so the preview
+    // and download links can be built straight from the id — no separate
+    // "look this file up by name" round trip needed the way the old
+    // filename-based flow required. We already HAVE the id, courtesy of
+    // /papers/folder-contents.
+    const previewLink    = `/api/files/download/${fileId}?preview=true`;
+    const directDownload = `/api/files/download/${fileId}`;
+    setpdflink(previewLink);
+    setactualDlink(directDownload);
+    setspin(false);
+
+    // Move to the solution's own route now that we have the PDF links,
+    // even before the AI solution itself comes back — the drawer shows
+    // its own loading state for `extract`.
+    navigate(`/dashboard/solution/${fileId}`);
+
     try {
-      // 1. Fetch the PDF preview / download links
-      const pdfResponse = await fetch(`${LocalApiPath}/api/files/${namedfile}`);
-      if (!pdfResponse.ok) {
-        throw new Error(`Failed to fetch PDF (${pdfResponse.status})`);
-      }
-      const pdfData = await pdfResponse.json();
-      setpdflink(pdfData.previewLink);
-      setraw(pdfData.raw);
-      setactualDlink(pdfData.directDownload);
-      setspin(false);
-
-      // Move to the solution's own route now that we have the PDF links,
-      // even before the AI solution itself comes back — the drawer shows
-      // its own loading state for `extract`.
-      navigate(`/dashboard/solution/${namedfile}`);
-
-      // 2. Fetch AI solutions
+      // Fetch the AI solution by driveFileId — replaces the old
+      // filename-based /request/solutions call, which can't reliably
+      // resolve a file in the current Drive layout (same-named papers,
+      // scraper-generated filenames that don't match what a user would
+      // type). courseName is passed through so the backend's auto-saved
+      // SolutionModel row is categorized correctly instead of falling back
+      // to "uncategorized".
       const options = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          filename:      namedfile,
-          selectedVal: modelVal,
+          fileId,
+          selectedVal:   modelVal,
           premiumstatus: premiumstatus ?? "premiumstatus",
+          courseName:    name ?? courseName,
         }),
       };
 
       const solutionResponse = await fetchWithAuth(
-        `${domain}/api/v1/request/solutions`,
+        `${domain}/api/v1/request/solutions/by-id`,
         options
       );
 
@@ -319,15 +331,15 @@ const SearchList = () => {
         }
       }
 
-      // Cache the finished solution so /dashboard/solution/:filename can
+      // Cache the finished solution so /dashboard/solution/:fileId can
       // restore it instantly on refresh instead of refetching.
-      cacheSolution(namedfile, {
+      cacheSolution(fileId, {
         courseName: name ?? courseName,
         extract: cleanedExtract,
         dataerror: extractError,
         raw: solutionData.raw ?? "",
-        pdflink: pdfData.previewLink,
-        actualDlink: solutionData.directDownload ?? pdfData.directDownload,
+        pdflink: previewLink,
+        actualDlink: solutionData.directDownload ?? directDownload,
         selectedVal: modelVal,
       });
     } catch (err) {
@@ -343,10 +355,11 @@ const SearchList = () => {
 
   // Wrapper matching the old getpayload(selectlink) signature used by
   // ModelComponent's "continue" button and Showfiles' onRegenerate.
+  // `res` is now the raw driveFileId (see fix() above) — no more
+  // res.split("=")[1] parsing, since there's no encoded URL to unpack.
   const getpayload = useCallback((res) => {
     setselectModel(false);
-    const namedfile = res.split("=")[1];
-    loadSolution(namedfile, selectedVal, courseName);
+    loadSolution(res, selectedVal, courseName);
   }, [loadSolution, selectedVal, courseName]);
 
   // ── restore or refetch the solution when landing directly on
