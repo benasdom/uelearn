@@ -206,6 +206,49 @@ const SearchList = () => {
   useEffect(() => {
     if (view) setmenuOpen(true);
   }, [view]);
+  // ── course folder browsing (search → folders → papers) ──────────────────
+  // `payload` (from context) is now the list of matching course FOLDERS, not
+  // individual files — a search can match several years/semesters of the
+  // same course, all filed under one folder. Opening a folder fetches the
+  // papers inside it; picking a specific paper is what finally calls fix().
+  const [openFolder,   setOpenFolder]   = useState(null); // the folder object, or null
+  const [folderPapers, setFolderPapers] = useState([]);
+  const [papersLoading, setPapersLoading] = useState(false);
+  const [papersError,  setPapersError]  = useState("");
+
+  const openFolderContents = async (folder) => {
+    setOpenFolder(folder);
+    setFolderPapers([]);
+    setPapersError("");
+    setPapersLoading(true);
+    try {
+      const data = await fetchWithAuth(
+        `${domain}/api/v1/papers/folder-contents?folderPath=${encodeURIComponent(folder.folderPath)}`,
+        { method: "GET" }
+      );
+      setFolderPapers(Array.isArray(data) ? data : data?.papers ?? data?.data?.papers ?? []);
+    } catch (err) {
+      setPapersError(err.message || "Couldn't load papers for this course.");
+    } finally {
+      setPapersLoading(false);
+    }
+  };
+
+  const closeFolderContents = () => {
+    setOpenFolder(null);
+    setFolderPapers([]);
+    setPapersError("");
+  };
+
+  // Starting a fresh top-level search should drop back out of whatever
+  // folder was open — otherwise stale papers from a previous course would
+  // linger behind the new search results.
+  useEffect(() => {
+    setOpenFolder(null);
+    setFolderPapers([]);
+    setPapersError("");
+  }, [find]);
+
   const logoutUser = () => {
     if (confirm("Confirm to Leave")) {
       logout();
@@ -391,16 +434,11 @@ const SearchList = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filename]);
 
-  // ── filter + sort the payload list ──
-  const filteredPayload =
-    find !== "" && payload.length > 0
-      ? [...new Set(payload)] // deduplicate by reference
-          .filter((a) => a.description.toLowerCase().includes(find.toLowerCase()))
-          .sort((a, b) => (b.createdOn?.slice(0, 4) ?? 0) - (a.createdOn?.slice(0, 4) ?? 0))
-          .slice(0, 30)
-      : [];
-
-  const showEmptyState = find === "" || filteredPayload.length === 0;
+  // Search is now server-side (see Appcontext.jsx's debounced call to
+  // /api/v1/papers/folders) — `payload` already IS this search's results,
+  // scoped and capped by the backend. No client-side filtering/sorting
+  // needed here anymore.
+  const showEmptyState = find.trim() === "" || payload.length === 0;
 
   return (
     <div className="searchlist">
@@ -547,26 +585,89 @@ const SearchList = () => {
 
               <div className="listcontent">
 
-                {/* ── results list ── */}
-                {!showEmptyState && filteredPayload.length > 0 ? (
-                  filteredPayload.map((item,b) => (
+                {/* ── results list: course folders, or papers inside an opened one ── */}
+                {openFolder ? (
+                  <>
+                    <div
+                      className="filtered mn4"
+                      style={{ margin: "0 0 10px", width: "100%", cursor: "pointer" }}
+                      onClick={closeFolderContents}
+                    >
+                      <ArrowLeftOutlined style={{ marginRight: 8 }} />
+                      Back to results — <strong style={{ marginLeft: 4 }}>{openFolder.courseName}</strong>
+                    </div>
+
+                    {papersLoading ? (
+                      <div className="filtered mn4" style={{ margin: 0, width: "100%" }}>
+                        <div className="ready">
+                          <div className="big"><LoadingOutlined spin /></div>
+                          <div className="desc err4"><span className="nerror">Loading papers…</span></div>
+                        </div>
+                      </div>
+                    ) : papersError ? (
+                      <div className="filtered mn4" style={{ margin: 0, width: "100%" }}>
+                        <div className="ready">
+                          <div className="big"><DisconnectOutlined style={{ opacity: .3 }} /></div>
+                          <div className="desc err4"><span className="nerror">{papersError}</span></div>
+                        </div>
+                      </div>
+                    ) : folderPapers.length > 0 ? (
+                      folderPapers.map((paper, i) => (
+                        <div
+                          className="filtered"
+                          key={paper.driveFileId ?? i}
+                          title={`${openFolder.courseName} — ${paper.examYear ?? ""} ${paper.semester ?? ""}`}
+                          data-ptext="title..."
+                          data-texts="details..."
+                        >
+                          <img src={pdfpic} alt="" className="imgthumb" />
+                          <div className="pinfo">
+                            <div className="titles">{renderTitleWithIcon(openFolder.courseName)}</div>
+                            <div className="describe">
+                              {[paper.examYear, paper.semester, paper.campus].filter(Boolean).join(" · ")}
+                            </div>
+                          </div>
+                          <div
+                            className="download"
+                            onClick={() => fix(paper.driveFileId, openFolder.courseName)}
+                          >
+                            <ExportOutlined style={{ marginRight: "5px" }} /> open
+                            <span className="prema" />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="filtered mn4" style={{ margin: 0, width: "100%" }}>
+                        <div className="ready">
+                          <div className="big"><SearchOutlined style={{ opacity: ".1" }} /></div>
+                          <div className="desc err4"><span className="nerror">No papers found for this course.</span></div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : !showEmptyState && payload.length > 0 ? (
+                  payload.map((folder, b) => (
                     <div
                       className="filtered"
-                      key={(item.downloadLink ?? item.description)+b}
-                      title={item.description.replace("-", ",")}
+                      key={folder.folderPath ?? b}
+                      title={folder.courseName}
                       data-ptext="title..."
                       data-texts="details..."
                     >
                       <img src={pdfpic} alt="" className="imgthumb" />
                       <div className="pinfo">
                         <div className="titles">
-                          {renderTitleWithIcon(item.description)}
+                          {renderTitleWithIcon(folder.courseName)}
                         </div>
-                        <div className="describe">{item.createdOn}</div>
+                        <div className="describe">
+                          {folder.department ? `${folder.department} · ` : ""}
+                          {folder.paperCount} paper{folder.paperCount === 1 ? "" : "s"}
+                          {folder.examYears?.length ? ` (${folder.examYears.join(", ")})` : ""}
+                        </div>
                       </div>
                       <div
                         className="download"
-                        onClick={() => fix(item.downloadLink, item.description)}
+                        onClick={() => openFolderContents(folder)}
                       >
                         <ExportOutlined style={{ marginRight: "5px" }} /> open
                         <span className="prema" />

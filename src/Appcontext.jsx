@@ -5,7 +5,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { getFromLocalStorage } from './menu/fromlocal';
 import { fetchWithAuth, domain, AuthError } from './menu/authfetch';
 
-const PASCO_API_URL = "https://benasdom.github.io/ugpascoapi/ugpasco.json";
+// Minimum characters typed before firing a folder search — avoids a
+// near-unfiltered (and near-useless) result set on the first keystroke.
+const MIN_SEARCH_LENGTH = 2;
+// Wait this long after the user stops typing before actually searching —
+// normal typing speed shouldn't fire a request per keystroke.
+const SEARCH_DEBOUNCE_MS = 350;
 
 // ─── animated icons (replace the ⚾ and ☝🏼 emojis in the search hint) ───────────
 
@@ -146,7 +151,30 @@ const ANIMATED_ICON_STYLES = `
   }
 `;
 
+// Default empty-state hint. Kept as a constant so it can be restored after a
+// failed request — otherwise the "check your connection" message sticks
+// around even after later searches succeed.
+const SEARCH_HINT = (
+  <>
+    Type the course c<AnimatedO />de in the search bar above <AnimatedUpArrow />
+  </>
+);
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+// The folders endpoint has returned several shapes over time. Accept all:
+//   [...]                                          (bare array)
+//   { folders: [...] }                             (Node scraper directly)
+//   { data: [...] } / { data: { folders: [...] } } (Django proxy)
+function extractFolders(res) {
+  const list =
+    (Array.isArray(res) && res) ||
+    res?.folders ||
+    res?.data?.folders ||
+    (Array.isArray(res?.data) && res.data) ||
+    [];
+  return Array.isArray(list) ? list : [];
+}
 
 function readStoredUser() {
   try {
@@ -177,12 +205,8 @@ export function AppProvider({ children }) {
   const location = useLocation();
 
   const [loader,       setloader]       = useState(true);
-  const [NetworkError, setNetworkError] = useState(
-    <>
-      Type the course c<AnimatedO />de in the search bar above <AnimatedUpArrow />
-    </>
-  );
-  const [Refreshing,   setRefreshing]   = useState(false);
+  const [NetworkError, setNetworkError] = useState(SEARCH_HINT);
+  const [refreshing,   setRefreshing]   = useState(false);
   const [payload,      setpayload]      = useState([]);
   const [credits,      setcredits]      = useState(0);
   const [dataerror,    setdataerror]    = useState("");
@@ -205,10 +229,8 @@ export function AppProvider({ children }) {
 
   // ── bootstrap from localStorage — redirect to /login if nothing cached ──
   useEffect(() => {
-    // Check if current route is public
     const isPublicRoute = PUBLIC_ROUTES.includes(location.pathname);
-    
-    // Don't redirect on public routes
+
     if (isPublicRoute) {
       setloader(false);
       return;
@@ -222,7 +244,7 @@ export function AppProvider({ children }) {
     } else {
       navigate('/login');
     }
-  }, [location.pathname, navigate]); // Add location.pathname as dependency
+  }, [location.pathname, navigate]);
 
   // ── cross-tab credit sync (e.g. from the Payment page) ──
   useEffect(() => {
@@ -239,7 +261,6 @@ export function AppProvider({ children }) {
     let cancelled = false;
 
     async function loadProfile() {
-      // Don't fetch profile on public routes
       const isPublicRoute = PUBLIC_ROUTES.includes(location.pathname);
       if (isPublicRoute) {
         setloader(false);
@@ -263,10 +284,7 @@ export function AppProvider({ children }) {
         const streak    = data.highestStreakScore ?? 0;
 
         // Persist and apply whatever the profile endpoint gave us, even if
-        // firstName happens to be missing on this response — previously the
-        // whole update (including the streak score) was gated on firstName
-        // being truthy, so an odd/partial response could silently leave
-        // maxscore stuck at 0 (or whatever was last cached).
+        // firstName happens to be missing on this response.
         if (Object.keys(data).length > 0) {
           writeStoredUser(data);
           setmaxscore(streak);
@@ -287,30 +305,82 @@ export function AppProvider({ children }) {
 
     loadProfile();
     return () => { cancelled = true; };
-  }, [location.pathname, navigate]); // Add location.pathname as dependency
+  }, [location.pathname, navigate]);
 
-  // ── fetch question bank — only once ──
+  // ── search: course folders, driven by `find` ──────────────────────────────
+  // `payload` is always a plain ARRAY of folder objects (courseName,
+  // folderPath, department, paperCount, examYears, driveFolderId).
+  // Searchlist.jsx maps over it directly.
+  //
+  // Debounced so normal typing speed fires one request per pause, not one
+  // per keystroke; below MIN_SEARCH_LENGTH we just clear results locally
+  // instead of hitting the network with a near-unfiltered query.
   useEffect(() => {
-    fetch(PASCO_API_URL)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Status ${res.status}`);
-        return res.json();
-      })
-      .then((res) => setpayload(res.data ?? []))
-      .catch((err) => {
-        setNetworkError(
-          <>
-            Oops! Kindly check your internet connection <AnimatedPlug /><AnimatedComputer /><AnimatedPleadingFace /> ({err.message})
-          </>
+    const query = find.trim();
+    console.log("[search] effect run, find =", JSON.stringify(find));
+
+    if (query.length < MIN_SEARCH_LENGTH) {
+      console.log("[search] query too short -> clearing payload");
+      setpayload([]);
+      setRefreshing(false);
+      return;
+    }
+
+    let cancelled = false;
+    setRefreshing(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        console.log("[search] firing request for:", query);
+        const res = await fetchWithAuth(
+          `${domain}/api/v1/papers/folders?search=${encodeURIComponent(query)}&pageSize=30`,
+          { method: "GET" }
         );
-        setRefreshing(false);
-      });
-  }, []);
+        console.log("[search] raw res:", res);
+        console.log("[search] extracted count:", extractFolders(res).length);
+        if (cancelled) {
+          console.warn("[search] result DISCARDED: effect was cancelled (find changed or component re-ran)");
+          return;
+        }
+        // The Node server returns { total, count, offset, folders: [...] },
+        // not a bare array — normalize whatever shape arrives.
+        setpayload(extractFolders(res));
+        // Clear any stale "check your connection" message from a prior failure.
+        setNetworkError(SEARCH_HINT);
+      } catch (err) {
+        console.error("[search] request failed:", err);
+        if (cancelled) return;
+        setpayload([]);
+        if (err instanceof AuthError) {
+          navigate('/login');
+        } else {
+          setNetworkError(
+            <>
+              Oops! Kindly check your internet connection <AnimatedPlug /><AnimatedComputer /><AnimatedPleadingFace /> ({err.message})
+            </>
+          );
+        }
+      } finally {
+        if (!cancelled) setRefreshing(false);
+      }
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      console.log("[search] cleanup (cancelling) for:", query);
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [find, navigate]);
+
+  // DEBUG: log every time payload changes
+  useEffect(() => {
+    console.log("[search] payload now has", payload.length, "items");
+  }, [payload]);
 
   const value = {
     loader, setloader,
     NetworkError, setNetworkError,
-    Refreshing, setRefreshing,
+    refreshing, setRefreshing,
     payload, setpayload,
     credits, setcredits,
     dataerror, setdataerror,
