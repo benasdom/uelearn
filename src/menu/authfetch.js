@@ -37,16 +37,114 @@ export class AuthError extends Error {
   }
 }
 
-// A generic HTTP error for non-2xx responses that aren't auth failures.
-// Carries the status code and parsed body so callers can inspect details
-// instead of getting a silently "successful" response.
+// ─── response envelope ────────────────────────────────────────────────────────
+// Every backend response uses one envelope (see API_RESPONSES_README.md):
+//   { status, statusCode, message, data, error, meta }
+// Success puts the payload in `data`; failure sets `data: null` and fills
+// `error: { code, message, details, suggestion }`. Branch on `error.code`,
+// never on message text.
+
+export function isEnvelope(body) {
+  return !!body && typeof body === "object" && typeof body.status === "boolean" && "data" in body;
+}
+
+export async function safeJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null; // empty body, or a proxy/gateway HTML page
+  }
+}
+
+export function getErrorCode(body) {
+  return body?.error?.code ?? null;
+}
+
+// First validation message per field: { password: "This password is too common." }
+export function fieldErrorsFrom(body) {
+  const d = body?.error?.details;
+  if (getErrorCode(body) !== "VALIDATION_ERROR" || !d || typeof d !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(d).map(([field, msgs]) => [field, Array.isArray(msgs) ? msgs[0] : String(msgs)])
+  );
+}
+
+const GENERIC_MESSAGE = "Something went wrong. Please try again.";
+
+// The one place that decides which server text a person gets to read.
+//  • `message` is written to be shown to users, so it's what we show.
+//  • `error.details` is NEVER shown for 5xx / SERVER_ERROR (it can hold
+//    technical text). For validation errors we append the first field
+//    message, and for a suspended account the admin's reason, because those
+//    are meant for the person.
+export function friendlyErrorMessage(body, httpStatus = 0, fallback = GENERIC_MESSAGE) {
+  const code = getErrorCode(body);
+  const isServerSide = httpStatus >= 500 || code === "SERVER_ERROR";
+  const base =
+    (typeof body?.message === "string" && body.message.trim()) ||
+    (typeof body?.error?.message === "string" && body.error.message.trim()) ||
+    "";
+
+  if (isServerSide) return base || fallback;
+  if (code === "VALIDATION_ERROR") {
+    const first = Object.values(fieldErrorsFrom(body))[0];
+    return first ? (base ? `${base}: ${first}` : first) : base || fallback;
+  }
+  if (code === "ACCOUNT_SUSPENDED" && typeof body?.error?.details === "string" && body.error.details) {
+    return `${base || "Your account has been suspended"}: ${body.error.details}`;
+  }
+  return base || fallback;
+}
+
+// Error thrown for every non-2xx response that isn't a dead session.
+// `code` / `meta` / `suggestion` come from the envelope; `details` is
+// deliberately withheld on 5xx so it can't reach the UI by accident.
 export class ApiError extends Error {
   constructor(message, status, body) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.code = getErrorCode(body);
+    this.meta = body?.meta ?? null;
+    this.suggestion = body?.error?.suggestion ?? null;
+    this.details = status >= 500 ? undefined : body?.error?.details;
   }
+  get isValidation() { return this.code === "VALIDATION_ERROR"; }
+  get isTransient() { return this.status >= 500 || this.status === 0; }
+  get fieldErrors() { return fieldErrorsFrom(this.body); }
+}
+
+// Pull the payload out of a parsed body. Envelope → `data` (even when it is
+// null, e.g. logout / verify-OTP — returning the whole envelope there would
+// leak `status`/`meta` into callers that spread the result into state).
+// Non-envelope bodies keep the old `data ?? body` behaviour.
+function unwrap(body) {
+  if (isEnvelope(body)) return body.data;
+  if (body && typeof body === "object" && body.data != null) return body.data;
+  return body;
+}
+
+// 401 codes that mean "your access token is no good" (refresh and retry).
+// INVALID_CREDENTIALS / SSO_LOGIN_REQUIRED are also 401s but must NOT trigger
+// a refresh. A 401 with no envelope code (gateway, legacy route) is given the
+// benefit of the doubt and tried once.
+const REFRESHABLE_401 = new Set(["INVALID_TOKEN", "UNAUTHORIZED", null]);
+const DEAD_SESSION_401 = new Set(["INVALID_TOKEN", "UNAUTHORIZED", "INVALID_REFRESH_TOKEN", null]);
+
+// Shared by the feature libs that do their own fetch (AI generator, media
+// studio): should this 401 be answered with a token refresh + one retry?
+export async function shouldRefreshAfter401(response) {
+  if (response.status !== 401) return false;
+  const body = await safeJson(response.clone());
+  return REFRESHABLE_401.has(getErrorCode(body));
+}
+
+// Tell the app the account is suspended so it can show a blocking notice.
+function announceSuspended(reason) {
+  try {
+    window.dispatchEvent(new CustomEvent("auth:account-suspended", { detail: { reason } }));
+  } catch { /* non-browser */ }
 }
 
 // Broadcast that the session has died so any part of the app — a top-level
@@ -152,17 +250,18 @@ async function doRefreshTokens(refreshUrl = `${domain}/api/v1/auth/refresh`) {
   });
 
   if (!response.ok) {
-    if (response.status === 400 || response.status === 401) {
-      // Refresh token invalid / expired — clear session and let the UI know
+    const errBody = await safeJson(response);
+    // ONLY 401 + INVALID_REFRESH_TOKEN means the session is dead. Anything
+    // else — a 500, a 400, a dropped connection, a gateway page — is a failed
+    // attempt, not a logout: fail this request and keep the session.
+    if (response.status === 401 && getErrorCode(errBody) === "INVALID_REFRESH_TOKEN") {
       expireSession("Session expired. Please sign in again.");
       throw new AuthError("Session expired. Please sign in again.");
     }
-    // Non-auth failure (network hiccup, 5xx) — don't nuke the session for
-    // this; just surface the error and let the caller decide whether to retry.
-    throw new Error(`Token refresh failed (${response.status})`);
+    throw new ApiError(friendlyErrorMessage(errBody, response.status), response.status, errBody);
   }
 
-  const data = await response.json();
+  const data = await safeJson(response);
   const newAccessToken = data?.data?.token;
 
   if (!newAccessToken) {
@@ -187,12 +286,13 @@ export async function refreshTokens(refreshUrl) {
 }
 
 // ─── authenticated fetch ──────────────────────────────────────────────────────
-// Automatically retries once after a 401 by refreshing the access token.
-// Always throws on failure (AuthError for dead sessions, ApiError for any
-// other non-2xx response) so callers' try/catch blocks behave as expected —
-// nothing here silently "succeeds" with an error body.
+// Refreshes the access token and retries once when the server says the token
+// is bad (401 INVALID_TOKEN). Always throws on failure (AuthError for dead
+// sessions, ApiError for any other non-2xx / `status:false` response) so
+// callers' try/catch blocks behave — nothing here silently "succeeds" with an
+// error body.
 
-export async function fetchWithAuth(urlPath, option = {}, _retryCount = 0) {
+async function authedRequest(urlPath, option = {}, _retryCount = 0) {
   const stored = readUserInfo();
 
   if (!stored?.accessToken) {
@@ -210,39 +310,51 @@ export async function fetchWithAuth(urlPath, option = {}, _retryCount = 0) {
 
   const response = await fetch(urlPath, opts);
 
-  // Retry once on 401 with a fresh token
-  if (response.status === 401 && _retryCount === 0) {
-    try {
+  if (response.ok) {
+    const body = await safeJson(response);
+    // HTTP and envelope `status` are meant to agree; trust a `false` anyway.
+    if (isEnvelope(body) && body.status === false) {
+      throw new ApiError(friendlyErrorMessage(body, response.status), response.status, body);
+    }
+    return body;
+  }
+
+  const body = await safeJson(response);
+  const code = getErrorCode(body);
+
+  if (response.status === 401) {
+    if (_retryCount === 0 && REFRESHABLE_401.has(code)) {
+      // refreshTokensDeduped clears the session and announces it when the
+      // refresh token itself is dead — just propagate that.
       await refreshTokensDeduped();
-    } catch (err) {
-      // refreshTokensDeduped already cleared the session and announced it
-      // when this was an auth failure — just propagate.
-      throw err;
+      return authedRequest(urlPath, option, 1); // _retryCount = 1 prevents infinite loop
     }
-    return fetchWithAuth(urlPath, option, 1); // _retryCount = 1 prevents infinite loop
-  }
-
-  if (!response.ok) {
-    // Still 401 after a fresh token, or any other non-2xx status — this is
-    // a real failure. Parse the body for a useful message, but ALWAYS throw;
-    // never resolve the promise with an error body.
-    let serverMessage = `Request failed (${response.status})`;
-    let body = null;
-    try {
-      body = await response.json();
-      if (body?.message) serverMessage = body.message;
-    } catch {
-      // Body wasn't JSON — fall back to the generic message above.
-    }
-
-    if (response.status === 401) {
+    if (DEAD_SESSION_401.has(code)) {
       expireSession("Session expired. Please sign in again.");
-      throw new AuthError(serverMessage || "Session expired. Please sign in again.");
+      throw new AuthError(friendlyErrorMessage(body, 401, "Session expired. Please sign in again."));
     }
-
-    throw new ApiError(serverMessage, response.status, body);
+    // Some other 401 (e.g. INVALID_CREDENTIALS): a real error, not a dead session.
   }
 
-  const data = await response.json();
-  return data?.data ?? data;
+  if (response.status === 403 && code === "ACCOUNT_SUSPENDED") {
+    announceSuspended(typeof body?.error?.details === "string" ? body.error.details : "");
+  }
+
+  throw new ApiError(friendlyErrorMessage(body, response.status, `Request failed (${response.status})`), response.status, body);
+}
+
+// Returns the payload (`data`). Most callers want this.
+export async function fetchWithAuth(urlPath, option = {}) {
+  return unwrap(await authedRequest(urlPath, option));
+}
+
+// Returns { data, meta, message } for callers that need more than the payload
+// — chiefly paginated lists, whose paging lives in `meta.pagination`.
+export async function fetchWithAuthEnvelope(urlPath, option = {}) {
+  const body = await authedRequest(urlPath, option);
+  return {
+    data: unwrap(body),
+    meta: (isEnvelope(body) && body.meta) || {},
+    message: (isEnvelope(body) && body.message) || "",
+  };
 }

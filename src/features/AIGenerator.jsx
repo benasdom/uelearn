@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadState, saveState, makeId } from '../lib/localStore'
 import { initialCardState } from '../lib/spacedRepetition'
-import { generateExercisesFromText } from '../lib/aiGenerator'
+import { generateExercisesFromText, estimateRequests } from '../lib/aiGenerator'
 import { extractTextFromFile, releaseOcrWorker, classifyFile, SUPPORTED_ACCEPT } from '../lib/fileExtract'
 import { bumpGenerations } from '../lib/activity'
 import SaveToSolutions from './SaveToSolutions'
@@ -36,7 +36,17 @@ function normalize(s) {
   return (s || '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-export default function AIGenerator({ initialText = '', initialSourceLabel = '', onNavigate }) {
+// mode: 'all' (default, Learning Hub behaviour) | 'quiz' (MCQ + fill-in only)
+//       | 'flashcards' (cards only). Filtering happens after the backend
+// answers, with a plain-language steer sent along so we don't waste calls.
+const MODE_META = {
+  all:        { eyebrow: 'NEW',        title: 'AI Generator',    cta: 'Generate questions', instruction: '', keep: () => true },
+  quiz:       { eyebrow: 'QUIZ',       title: 'Quiz Generator',  cta: 'Generate quiz',      instruction: 'Create multiple-choice and fill-in-the-blank questions only.', keep: (e) => e.kind !== 'flashcard' },
+  flashcards: { eyebrow: 'FLASHCARDS', title: 'Flashcard Maker', cta: 'Generate flashcards', instruction: 'Create flashcards only (a short front prompt and a concise back answer).', keep: (e) => e.kind === 'flashcard' },
+}
+
+export default function AIGenerator({ initialText = '', initialSourceLabel = '', onNavigate, mode = 'all', embedded = false }) {
+  const modeMeta = MODE_META[mode] || MODE_META.all
   // ── input screen state ──
   const [sourceTab, setSourceTab] = useState('paste')
   const [text, setText] = useState(initialText)
@@ -64,6 +74,8 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
   const [testTitle, setTestTitle] = useState('')
   const [deckName, setDeckName] = useState('')
   const [savedInto, setSavedInto] = useState({ testId: null, deckId: null, questionCount: 0, cardCount: 0 })
+
+  const requestEstimate = estimateRequests(text)
 
   const pickNote = (note) => {
     setText(note.body)
@@ -156,12 +168,18 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
     setProgress({ done: 0, total: 1 })
 
     try {
-      const { exercises, remainingCredits: rc, partialErrors: errs } = await generateExercisesFromText(trimmed, {
+      const { exercises: all, remainingCredits: rc, partialErrors: errs } = await generateExercisesFromText(trimmed, {
         onProgress: (done, total) => setProgress({ done, total }),
+        instruction: modeMeta.instruction || undefined,
       })
+      const exercises = all.filter(modeMeta.keep)
 
       if (exercises.length === 0) {
-        setError('No questions came back for this text. Try pasting a longer or more detailed passage.')
+        setError(
+          all.length > 0
+            ? `The AI returned ${all.length} item${all.length !== 1 ? 's' : ''}, but none were ${mode === 'flashcards' ? 'flashcards' : 'quiz questions'}. Try again or use a longer passage.`
+            : 'No questions came back for this text. Try pasting a longer or more detailed passage.'
+        )
         setStatus('idle')
         return
       }
@@ -440,11 +458,15 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
   // ===================================================================
   return (
     <div className="hub-page">
-      <p className="hub-eyebrow">NEW</p>
-      <h2 className="hub-title">AI Generator</h2>
-      <p style={{ fontSize: 13, color: 'var(--hub-text-muted)', marginTop: -10, marginBottom: 16 }}>
-        Paste notes, upload a PDF/Word doc/image, or pick a saved note — get multiple-choice, fill-in-the-blank, and flashcard questions generated automatically.
-      </p>
+      {!embedded && (
+        <>
+          <p className="hub-eyebrow">{modeMeta.eyebrow}</p>
+          <h2 className="hub-title">{modeMeta.title}</h2>
+          <p style={{ fontSize: 13, color: 'var(--hub-text-muted)', marginTop: -10, marginBottom: 16 }}>
+            Paste notes, upload a PDF/Word doc/image, or pick a saved note — get multiple-choice, fill-in-the-blank, and flashcard questions generated automatically.
+          </p>
+        </>
+      )}
 
       <div className="hub-tabs">
         <button className={`hub-tab ${sourceTab === 'paste' ? 'active' : ''}`} onClick={() => setSourceTab('paste')}>Paste text</button>
@@ -555,6 +577,11 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
         </>
       )}
 
+      {requestEstimate > 1 && (
+        <div style={{ fontSize: 12, color: 'var(--hub-text-muted)', marginTop: 10 }}>
+          ⚡ This text will be sent as {requestEstimate} separate requests — trim it to use fewer credits.
+        </div>
+      )}
       {error && <div className="hub-error">{error}</div>}
       {partialErrors.length > 0 && status === 'idle' && (
         <div className="hub-error">Some of the text couldn't be processed — try shortening it.</div>
@@ -570,7 +597,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
           ? progress && progress.total > 1
             ? `Generating… (${progress.done}/${progress.total})`
             : 'Generating…'
-          : 'Generate questions'}
+          : modeMeta.cta}
       </button>
 
       {typeof remainingCredits === 'number' && (

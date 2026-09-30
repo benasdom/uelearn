@@ -40,11 +40,16 @@ export async function askTutor(topic, opts = {}) {
 
 /** AI Chat: one more turn in an ongoing conversation. */
 export async function askChat(history, opts = {}) {
+  // Optional grounding (e.g. the solution the student is looking at). Kept
+  // short on purpose: everything is chunked at ~1500 chars and each chunk is
+  // a separate paid request, so a big context would multiply the cost.
+  const context = (opts.context || '').trim().slice(0, 500)
   const transcript = history
     .slice(-8) // keep the prompt small — recent context is what matters
     .map((m) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.content}`)
     .join('\n')
-  const prompt = `You are a helpful study tutor continuing this conversation. Respond directly and naturally to the student's latest message.\n\n${transcript}`
+  const grounding = context ? `The student is working on this material: ${context}\n\n` : ''
+  const prompt = `You are a helpful study tutor continuing this conversation. Respond directly and naturally to the student's latest message.\n\n${grounding}${transcript}`
   const { exercises, partialErrors } = await generateExercisesFromText(prompt, opts)
   const qa = extractQA(exercises)
   if (qa.length === 0) throw new Error(partialErrors[0] || "Didn't get a reply — try asking differently.")

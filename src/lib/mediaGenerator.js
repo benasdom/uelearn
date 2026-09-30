@@ -21,7 +21,8 @@
 //   { id, generationType: 'IMAGE'|'VIDEO', prompt, modelName, status: 'PROCESSING'|'SUCCESS'|'FAILED',
 //     resultUrl, creditsCharged, dateCreated }
 
-import { domain, refreshTokens, getUserState, AuthError } from '../menu/authfetch'
+import { domain, refreshTokens, getUserState, AuthError, shouldRefreshAfter401, friendlyErrorMessage } from '../menu/authfetch'
+import { emitCredits } from './creditsBus'
 
 const IMAGE_GENERATE_ENDPOINT = `${domain}/api/v1/ai/image/generate`
 const VIDEO_GENERATE_ENDPOINT = `${domain}/api/v1/ai/video/generate`
@@ -39,9 +40,11 @@ export const CREDITS_PER_VIDEO_GENERATION = 250
 const VIDEO_POLL_INTERVAL_MS = 6000
 const VIDEO_POLL_TIMEOUT_MS = 6 * 60 * 1000 // 6 minutes
 
-function extractErrorMessage(parsed, fallback) {
+// `message` is the user-safe text. `error.details` is only ever surfaced for
+// validation errors (handled inside friendlyErrorMessage) and never on 5xx.
+function extractErrorMessage(parsed, fallback, httpStatus = 0) {
   if (!parsed || typeof parsed !== 'object') return fallback
-  return parsed.error?.details || parsed.error?.message || parsed.message || fallback
+  return friendlyErrorMessage(parsed, httpStatus, fallback)
 }
 
 // ===== AUTHENTICATED REQUEST =====
@@ -64,7 +67,9 @@ async function authedRequest(url, { method = 'GET', body, signal, _retryCount = 
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  if (response.status === 401 && _retryCount === 0) {
+  // Refresh only when the token itself is bad (401 INVALID_TOKEN) — not for
+  // other 401s — and only once.
+  if (_retryCount === 0 && (await shouldRefreshAfter401(response))) {
     await refreshTokens()
     return authedRequest(url, { method, body, signal, _retryCount: 1 })
   }
@@ -77,7 +82,7 @@ async function authedRequest(url, { method = 'GET', body, signal, _retryCount = 
   }
 
   if (!response.ok || parsed?.status === false) {
-    throw new Error(extractErrorMessage(parsed, `Request failed (${response.status}): ${response.statusText}`))
+    throw new Error(extractErrorMessage(parsed, `Request failed (${response.status}): ${response.statusText}`, response.status))
   }
 
   if (!parsed) {
@@ -108,6 +113,7 @@ export async function generateImage(prompt, opts = {}) {
   const generation = parsed?.data?.generation
   if (!generation) throw new Error('Unexpected response shape from server — no generation returned.')
 
+  emitCredits(parsed?.data?.remaining_credits)
   return { generation, remainingCredits: parsed?.data?.remaining_credits }
 }
 
@@ -145,6 +151,7 @@ export async function checkVideoStatus(generationId, opts = {}) {
   const generation = parsed?.data?.generation
   if (!generation) throw new Error('Unexpected response shape from server — no generation returned.')
 
+  if (generation.status === 'SUCCESS') emitCredits(parsed?.data?.remaining_credits)
   return { generation, remainingCredits: parsed?.data?.remaining_credits }
 }
 
@@ -196,6 +203,7 @@ export async function fetchGenerationHistory(opts = {}) {
 
   return {
     items: Array.isArray(parsed?.data) ? parsed.data : [],
-    pagination: parsed?.pagination || null,
+    // Paging info lives in meta.pagination (top-level `pagination` is the old shape).
+    pagination: parsed?.meta?.pagination ?? parsed?.pagination ?? null,
   }
 }

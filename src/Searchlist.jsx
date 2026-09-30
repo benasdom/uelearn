@@ -460,11 +460,24 @@ const SearchList = () => {
           // be retried without leaving the solutions drawer. Falls back to
           // reloading the current filename from the URL when there's no
           // `selectlink` in memory (e.g. after a refresh).
-          onRegenerate={() =>
-            selectlink
-              ? getpayload(selectlink)
-              : loadSolution(filename, selectedVal, courseName)
-          }
+          //
+          // `modelOverride` is set when the user picked a different model in
+          // the viewer's picker. It's passed straight to loadSolution (state
+          // set below wouldn't be visible to this render's closures yet) and
+          // also stored, so the new result — and anything saved from it — is
+          // attributed to the model that actually produced it.
+          onRegenerate={(modelOverride) => {
+            const model = modelOverride || selectedVal
+            if (modelOverride) setselectedVal(modelOverride)
+            setselectModel(false)
+            loadSolution(selectlink || filename, model, courseName)
+          }}
+          // AI tools inside the viewer report fresh balances; keep the app's
+          // copy (context + stored user) in step so other screens agree.
+          onCreditsChange={(n) => {
+            setcredits(n)
+            writeStoredUser({ credits: n })
+          }}
         />
       ) : (
         <div>

@@ -44,7 +44,7 @@ export default function Discussions() {
     } catch (err) {
       if (err instanceof AuthError) {
         setError('Please sign in to view discussions.')
-      } else if (String(err.message).includes('404')) {
+      } else if (err?.status === 404) {
         setBackendMissing(true)
       } else {
         setError("Couldn't load discussions right now.")

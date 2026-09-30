@@ -4,6 +4,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getFromLocalStorage } from './menu/fromlocal';
 import { fetchWithAuth, domain, AuthError } from './menu/authfetch';
+import SuspendedNotice from './SuspendedNotice';
 
 // Minimum characters typed before firing a folder search — avoids a
 // near-unfiltered (and near-useless) result set on the first keystroke.
@@ -400,6 +401,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={value}>
       <style>{ANIMATED_ICON_STYLES}</style>
       {children}
+      <SuspendedNotice />
     </AppContext.Provider>
   );
 }

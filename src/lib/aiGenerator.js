@@ -4,7 +4,8 @@
 // out there. See the extension's `src/content/ai-generator/openai-client.js`
 // for the reference implementation this is adapted from.
 
-import { domain, refreshTokens, getUserState, AuthError } from '../menu/authfetch'
+import { domain, refreshTokens, getUserState, AuthError, shouldRefreshAfter401, friendlyErrorMessage, safeJson } from '../menu/authfetch'
+import { emitCredits } from './creditsBus'
 
 const QUERIES_ENDPOINT = `${domain}/api/v1/solutions/extension`
 const DEFAULT_MODEL = 'deepseek-chat'
@@ -34,6 +35,18 @@ function chunkText(text) {
   }
 
   return chunks.filter((c) => c.length > 30)
+}
+
+/**
+ * How many backend requests (and therefore how many credits' worth of work)
+ * a piece of text will turn into once chunked. Lets the UI warn before a
+ * long passage fans out into many calls.
+ */
+export function estimateRequests(text) {
+  const trimmed = (text || '').trim()
+  if (trimmed.length < 10) return 0
+  const chunks = chunkText(trimmed)
+  return Math.max(1, chunks.length)
 }
 
 // ===== RESPONSE READING =====
@@ -94,20 +107,18 @@ async function requestExercises(text, signal, _retryCount = 0) {
     }),
   })
 
-  if (response.status === 401 && _retryCount === 0) {
+  // Refresh only when the token itself is bad (401 INVALID_TOKEN), once.
+  if (_retryCount === 0 && (await shouldRefreshAfter401(response))) {
     await refreshTokens()
     return requestExercises(text, signal, 1)
   }
 
   if (!response.ok) {
-    let detail = response.statusText
-    try {
-      const errBody = await response.clone().json()
-      detail = errBody?.message || detail
-    } catch {
-      // body wasn't JSON — fall back to statusText
-    }
-    throw new Error(`Request failed (${response.status}): ${detail}`)
+    // `message` is written for users; friendlyErrorMessage also guarantees
+    // technical `error.details` never leaks on a 5xx.
+    const errBody = await safeJson(response.clone())
+    const detail = errBody ? friendlyErrorMessage(errBody, response.status, response.statusText) : response.statusText
+    throw new Error(response.status >= 500 ? detail : `Request failed (${response.status}): ${detail}`)
   }
 
   const rawOutput = await readBody(response)
@@ -125,7 +136,7 @@ async function requestExercises(text, signal, _retryCount = 0) {
   // Backend wraps the payload as:
   // { status, message, data: { api_response: { data: { exercises: [...] } } }, remaining_credits }
   if (parsed?.status === false) {
-    throw new Error(parsed.message || 'The server rejected the request.')
+    throw new Error(friendlyErrorMessage(parsed, parsed?.statusCode ?? 0, 'The server rejected the request.'))
   }
 
   const exercises = parsed?.data?.api_response?.data?.exercises
@@ -133,7 +144,12 @@ async function requestExercises(text, signal, _retryCount = 0) {
     throw new Error('Unexpected response shape from server — no exercises field found.')
   }
 
-  return { exercises, remainingCredits: parsed?.remaining_credits }
+  // Under the envelope the balance sits inside `data` (like request-solution's
+  // { api_response, remaining_credits, solutionId }); the old top-level spot
+  // is still read so a mid-deploy response doesn't drop the credits display.
+  const remainingCredits = parsed?.data?.remaining_credits ?? parsed?.remaining_credits
+  emitCredits(remainingCredits)
+  return { exercises, remainingCredits }
 }
 
 // ===== PUBLIC API =====
@@ -141,7 +157,9 @@ async function requestExercises(text, signal, _retryCount = 0) {
 /**
  * Generates exercises from arbitrary text, chunking long input as needed.
  * @param {string} fullText
- * @param {{ onProgress?: (done: number, total: number) => void }} [opts]
+ * @param {{ onProgress?: (done: number, total: number) => void, instruction?: string }} [opts]
+ *   `instruction` is an optional plain-language steer prepended to every chunk
+ *   (e.g. "Prefer flashcards"). The backend still decides the exercise mix.
  * @returns {Promise<{ exercises: object[], remainingCredits: number|undefined, partialErrors: string[] }>}
  */
 export async function generateExercisesFromText(fullText, opts = {}) {
@@ -159,7 +177,8 @@ export async function generateExercisesFromText(fullText, opts = {}) {
 
   for (let i = 0; i < list.length; i++) {
     try {
-      const { exercises, remainingCredits: rc } = await requestExercises(list[i], controller.signal)
+      const payload = opts.instruction ? `${opts.instruction}\n\n${list[i]}` : list[i]
+      const { exercises, remainingCredits: rc } = await requestExercises(payload, controller.signal)
       exercises.forEach((raw) => {
         const normalized = normalizeExercise(raw)
         if (normalized) allExercises.push(normalized)

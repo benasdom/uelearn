@@ -3,7 +3,7 @@ import { askChat } from '../lib/aiConversation'
 import { bumpGenerations } from '../lib/activity'
 import SaveToSolutions from './SaveToSolutions'
 
-export default function ChatInterface() {
+export default function ChatInterface({ context = '', saveTitle = 'AI chat transcript' }) {
   const [messages, setMessages] = useState([]) // { role: 'user'|'assistant', content }
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
@@ -11,7 +11,7 @@ export default function ChatInterface() {
   const endRef = useRef(null)
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    endRef.current?.scrollIntoView?.({ behavior: 'smooth' })
   }, [messages, sending])
 
   const send = async () => {
@@ -23,7 +23,7 @@ export default function ChatInterface() {
     setSending(true)
     setError(null)
     try {
-      const reply = await askChat(next)
+      const reply = await askChat(next, { context })
       setMessages([...next, { role: 'assistant', content: reply }])
       bumpGenerations()
     } catch (err) {
@@ -48,7 +48,7 @@ export default function ChatInterface() {
 
       {messages.length > 0 && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <SaveToSolutions title="AI chat transcript" content={transcript} modelName="ai-chat" />
+          <SaveToSolutions title={saveTitle} content={transcript} modelName="ai-chat" />
         </div>
       )}
 

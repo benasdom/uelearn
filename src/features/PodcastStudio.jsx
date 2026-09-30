@@ -16,8 +16,8 @@ function pickTwoVoices() {
   return [a, b]
 }
 
-export default function PodcastStudio() {
-  const [topic, setTopic] = useState('')
+export default function PodcastStudio({ initialTopic = '' }) {
+  const [topic, setTopic] = useState(initialTopic)
   const [status, setStatus] = useState('idle') // idle | loading | ready | error
   const [lines, setLines] = useState([])
   const [error, setError] = useState(null)

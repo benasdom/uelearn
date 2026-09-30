@@ -9,18 +9,24 @@ import {
   CloseOutlined,
   FullscreenOutlined,
   FullscreenExitOutlined,
+  RobotOutlined,
+  DownOutlined,
+  CheckOutlined,
+  SearchOutlined,
 } from '@ant-design/icons'
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { marked } from 'marked'
 import { Link } from 'react-router-dom'
 import {
   GraduationCap, FolderOpen, LayoutGrid, Sparkles, Trophy,
   Wallet, Megaphone, BookOpen, Briefcase,
 } from 'lucide-react'
-import { domain, fetchWithAuth, LocalApiPath } from './menu/authfetch'
+import { domain, fetchWithAuth, fetchWithAuthEnvelope, LocalApiPath } from './menu/authfetch'
 import racoon_learn from '/imgs/racoon_learn.jpg'
 import racoon_save from '/imgs/save.jpg'
 import PdfViewer from './menu/PdfViewer'
+import SolutionAIPanel, { AI_TOOLS, solutionToPlainText } from './features/SolutionAITools'
+import { onCredits } from './lib/creditsBus'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -215,6 +221,164 @@ const SaveModal = ({ setstoreme, extract, courseName, selectedVal }) => {
   )
 }
 
+// ─── Model catalog ────────────────────────────────────────────────────────────
+// Same endpoint ModelComponent uses ({ "Display name": "api-value", ... }).
+// Fetched once per page load and shared, so opening/closing the viewer or the
+// picker never re-requests it; a failed attempt isn't cached, so Retry works.
+
+let modelsCache = null
+let modelsInflight = null
+
+const loadModels = () => {
+  if (modelsCache) return Promise.resolve(modelsCache)
+  if (!modelsInflight) {
+    modelsInflight = fetch(`${LocalApiPath}/api/files/models`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then((data) => {
+        if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
+          throw new Error('No models available')
+        }
+        modelsCache = data
+        return data
+      })
+      .finally(() => { modelsInflight = null })
+  }
+  return modelsInflight
+}
+
+// api value → friendly name, falling back to the raw value until the catalog loads.
+const labelForModel = (val) => {
+  if (!val) return ''
+  const hit = Object.entries(modelsCache || {}).find(([, v]) => v === val)
+  return hit?.[0] || val
+}
+
+// ─── Model picker ─────────────────────────────────────────────────────────────
+// Sits next to the credits pill. Choosing a model does NOT touch the solution
+// on screen — it only decides which model the next "Regenerate" uses, so the
+// current result stays correctly attributed (and correctly saved).
+
+const ModelPicker = ({ currentVal, pendingVal, onPick, disabled }) => {
+  const [models, setModels] = useState(modelsCache || {})
+  const [status, setStatus] = useState(modelsCache ? 'ready' : 'loading') // loading | ready | error
+  const [open, setOpen] = useState(false)
+  const [term, setTerm] = useState('')
+  const rootRef = useRef(null)
+  const searchRef = useRef(null)
+
+  const fetchModels = useCallback(() => {
+    setStatus('loading')
+    loadModels()
+      .then((data) => { setModels(data); setStatus('ready') })
+      .catch(() => setStatus('error'))
+  }, [])
+
+  useEffect(() => {
+    if (!modelsCache) fetchModels()
+  }, [fetchModels])
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e) => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    searchRef.current?.focus()
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const activeVal = pendingVal || currentVal
+  const entries = useMemo(() => {
+    const t = term.trim().toLowerCase()
+    return Object.entries(models).filter(([name]) => !t || name.toLowerCase().includes(t))
+  }, [models, term])
+
+  const pick = (val) => {
+    onPick(val === currentVal ? null : val)
+    setOpen(false)
+    setTerm('')
+  }
+
+  return (
+    <div className="sf-model" ref={rootRef}>
+      <button
+        type="button"
+        className={`sf-model__btn ${pendingVal ? 'sf-model__btn--pending' : ''}`}
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={pendingVal ? 'Next regenerate will use this model' : 'Choose the AI model for the next regenerate'}
+      >
+        <RobotOutlined />
+        <span className="sf-model__name">{labelForModel(activeVal) || 'Model'}</span>
+        <DownOutlined className="sf-model__caret" />
+      </button>
+
+      {open && (
+        <div className="sf-model__pop" role="dialog" aria-label="Choose AI model">
+          <div className="sf-model__search">
+            <SearchOutlined />
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder="Search models…"
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              aria-label="Search models"
+            />
+          </div>
+
+          <div className="sf-model__list" role="listbox">
+            {status === 'loading' && [1, 2, 3].map((i) => (
+              <div key={i} className="sf-model__row"><Skeleton height={12} width="60%" /></div>
+            ))}
+            {status === 'error' && (
+              <div className="sf-model__empty">
+                Couldn’t load models.{' '}
+                <button type="button" className="sf-model__retry" onClick={fetchModels}>Retry</button>
+              </div>
+            )}
+            {status === 'ready' && entries.length === 0 && (
+              <div className="sf-model__empty">No models match “{term.trim()}”</div>
+            )}
+            {status === 'ready' && entries.map(([name, val]) => (
+              <button
+                type="button"
+                key={val}
+                role="option"
+                aria-selected={val === activeVal}
+                className={`sf-model__row sf-model__row--btn ${val === activeVal ? 'sf-model__row--active' : ''}`}
+                onClick={() => pick(val)}
+              >
+                <RobotOutlined className="sf-model__row-icon" />
+                <span className="sf-model__row-name">{name}</span>
+                {val === currentVal && <span className="sf-model__tag">Current</span>}
+                {val === activeVal && <CheckOutlined className="sf-model__check" />}
+              </button>
+            ))}
+          </div>
+
+          <div className="sf-model__foot">
+            Takes effect the next time you press <strong>Regenerate</strong>.
+            {pendingVal && (
+              <button type="button" className="sf-model__retry" onClick={() => pick(currentVal)}>
+                Keep {labelForModel(currentVal) || 'current'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Skeleton loader ──────────────────────────────────────────────────────────
 
 const Skeleton = ({ width = '100%', height = 14, style = {} }) => (
@@ -234,7 +398,8 @@ const Showfiles = ({
   extract,
   dataerror,
   raw,
-  onRegenerate, // ← re-runs the original fetch (PDF + AI solution) so the solution can be regenerated
+  onRegenerate, // ← re-runs the original fetch (PDF + AI solution); called with an optional model override
+  onCreditsChange, // ← lets the parent persist a new balance when an AI tool reports one
 }) => {
   const [solnsOpen, setSolnsOpen] = useState(false)
   const [recentItems, setRecentItems] = useState(getRecents)
@@ -254,9 +419,14 @@ const Showfiles = ({
   const [activeTab, setActiveTab] = useState('saved') // 'saved' | 'recent'
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [expanded, setExpanded] = useState(false) // solutions drawer: half-screen vs. full-width
+  const [pickedModel, setPickedModel] = useState(null) // model chosen for the NEXT regenerate (null = keep current)
+  const [aiTool, setAiTool] = useState(null) // key from AI_TOOLS while a tool is showing, else null
+  const [aiMounted, setAiMounted] = useState(false) // once opened, the panel stays mounted (hidden) to keep paid results
+  const [creditsOverride, setCreditsOverride] = useState(null) // fresher balance reported by an AI tool
 
   const controllerRef = useRef(null)
   const searchDebounceRef = useRef(null)
+  const lastFetchedTermRef = useRef('') // term the saved list currently reflects
 
   // ── Fetch solutions (all or filtered) ───────────────────────────────────
 
@@ -269,6 +439,7 @@ const Showfiles = ({
     controllerRef.current = new AbortController()
 
     const isTerm = term.trim().length > 0
+    if (!append) lastFetchedTermRef.current = term.trim()
     if (append) {
       setIsLoadingMoreQueries(true)
     } else {
@@ -294,24 +465,29 @@ const Showfiles = ({
     const timeout = setTimeout(() => controllerRef.current?.abort(), FETCH_TIMEOUT_MS)
 
     try {
-      const result = await fetchWithAuth(url, {
+      // Response envelope: `data` is the array of solutions for this page and
+      // the paging info is in `meta.pagination` (page, pageSize, totalCount,
+      // totalPages, hasNext, hasPrevious). Newest first — don't re-sort.
+      const { data, meta } = await fetchWithAuthEnvelope(url, {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         signal: controllerRef.current.signal,
       })
-      const normalised =
-        result?.solutions != null         ? result
-        : result?.data?.solutions != null  ? result.data
-        : null
-
-      const newSolutions = normalised?.solutions ?? []
-      // Older/un-paginated backends won't send hasNext at all — treat that
-      // as "no more pages" rather than showing a Load more button forever.
-      const nextHasMore = normalised?.hasNext ?? false
+      // `data.solutions` is the pre-envelope shape; tolerated so a frontend
+      // that ships a moment before the backend doesn't show an empty list.
+      const newSolutions = Array.isArray(data) ? data : Array.isArray(data?.solutions) ? data.solutions : []
+      const paging = meta?.pagination ?? (data && !Array.isArray(data) ? data : null)
+      const normalised = {
+        solutions: newSolutions,
+        solutions_count: paging?.totalCount ?? paging?.solutions_count ?? newSolutions.length,
+      }
+      // No pagination info at all → treat as "no more pages" rather than
+      // showing a Load more button forever.
+      const nextHasMore = paging?.hasNext ?? false
 
       setFounditems((prev) =>
         append
           ? { ...normalised, solutions: [...(prev?.solutions ?? []), ...newSolutions] }
-          : (normalised || { solutions: [], solutions_count: 0 })
+          : normalised
       )
       setHasMoreQueries(nextHasMore)
       setQueriesPage(page)
@@ -334,12 +510,27 @@ const Showfiles = ({
     }
   }, [fetchSolutions])
 
+  // The one search box serves both tabs. Saved queries live on the server, so
+  // typing there is debounced into a server search; Recents live in
+  // localStorage, so they're filtered instantly on the client (see
+  // `filteredRecents`) and typing there never hits the network.
   const handleSearchChange = useCallback((e) => {
     const val = e.target.value
     setSearchTerm(val)
     clearTimeout(searchDebounceRef.current)
+    if (activeTab !== 'saved') return
     searchDebounceRef.current = setTimeout(() => fetchSolutions(val), SEARCH_DEBOUNCE_MS)
-  }, [fetchSolutions])
+  }, [fetchSolutions, activeTab])
+
+  const switchTab = useCallback((tab) => {
+    setActiveTab(tab)
+    clearTimeout(searchDebounceRef.current)
+    // Coming back to Saved after typing while on Recents: the list still
+    // reflects the old term, so bring it in line with what's in the box.
+    if (tab === 'saved' && lastFetchedTermRef.current !== searchTerm.trim()) {
+      fetchSolutions(searchTerm)
+    }
+  }, [fetchSolutions, searchTerm])
 
   const handleLoadMoreQueries = useCallback(() => {
     if (!hasMoreQueries || isLoadingMoreQueries) return
@@ -360,6 +551,42 @@ const Showfiles = ({
   const hasError = dataerror?.length > 0 || !extract || extract === 'loading...'
   const hasDownload = /download/gi.test(actualDlink)
 
+  const filteredRecents = useMemo(() => {
+    const t = searchTerm.trim().toLowerCase()
+    if (!t) return recentItems
+    return recentItems.filter((x) => (x.course || '').toLowerCase().includes(t))
+  }, [recentItems, searchTerm])
+
+  // Credits: prefer a fresher balance an AI tool just reported; fall back to
+  // whatever the parent passes. A new value from the parent wins again.
+  useEffect(() => { setCreditsOverride(null) }, [credits])
+  useEffect(() => onCredits((n) => {
+    setCreditsOverride(n)
+    onCreditsChange?.(n)
+  }), [onCreditsChange])
+  const shownCredits = creditsOverride ?? credits ?? '0'
+
+  // A finished regenerate (or a different model in play) clears the pending pick.
+  useEffect(() => { setPickedModel(null) }, [selectedVal])
+
+  // The AI tools work on whatever solution is on screen (live, saved or recent).
+  const shownSolution = savedquery?.solution || (hasError ? '' : extract) || ''
+  const aiSourceText = useMemo(
+    () => solutionToPlainText(shownSolution ? marked(shownSolution) : ''),
+    [shownSolution]
+  )
+  const aiCourse = savedquery?.course || courseName
+  // A different solution (or a regenerate) means any open tool was working on
+  // stale material, so reset them rather than quietly mixing sources.
+  const aiSourceKey = `${savedquery?.id ?? savedquery?.course ?? 'live'}|${aiSourceText.length}|${aiSourceText.slice(0, 40)}`
+  useEffect(() => { setAiTool(null); setAiMounted(false) }, [aiSourceKey])
+
+  const toggleAiTool = (key) => {
+    setAiMounted(true)
+    setAiTool((prev) => (prev === key ? null : key))
+  }
+  const selectAiTool = (key) => { setAiMounted(true); setAiTool(key) }
+
   // Once a fresh load starts coming in (isLoading flips true again), drop the
   // local "regenerating" flag so the button re-appears whatever the outcome.
   useEffect(() => {
@@ -371,9 +598,12 @@ const Showfiles = ({
   // result costs nothing extra to retry, so no prompt needed there.
   const handleRegenerate = () => {
     if (!onRegenerate || isRegenerating) return
-    if (!hasError && !confirm('Regenerate will use another credit for a fresh solution. Continue?')) return
+    const modelName = labelForModel(pickedModel || selectedVal)
+    const withModel = modelName ? ` with ${modelName}` : ''
+    if (!hasError && !confirm(`Regenerate${withModel}? This uses another credit for a fresh solution.`)) return
     setIsRegenerating(true)
-    onRegenerate()
+    setAiTool(null)
+    onRegenerate(pickedModel || undefined)
   }
 
   const renderedContent = () => {
@@ -467,9 +697,15 @@ const Showfiles = ({
                 {expanded ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
               </button>
               <div className="sf-drawer__credits">
+                <ModelPicker
+                  currentVal={selectedVal}
+                  pendingVal={pickedModel}
+                  onPick={setPickedModel}
+                  disabled={isLoading || isRegenerating}
+                />
                 <Link to="/Payment" target="_blank" rel="noopener noreferrer" className="sf-credits-pill">
                   <i className="fa fa-bolt sf-credits-pill__icon" />
-                  <strong>{credits ?? '0'}</strong>
+                  <strong>{shownCredits}</strong>
                   <span className="sf-credits-pill__topup"><MoneyCollectOutlined /> Top up</span>
                 </Link>
               </div>
@@ -498,7 +734,8 @@ const Showfiles = ({
                     <input
                       type="search"
                       className="sf-search"
-                      placeholder="Search queries…"
+                      placeholder={activeTab === 'recent' ? 'Filter recents…' : 'Search saved queries…'}
+                      aria-label={activeTab === 'recent' ? 'Filter recent solutions' : 'Search saved queries'}
                       value={searchTerm}
                       onChange={handleSearchChange}
                     />
@@ -509,13 +746,13 @@ const Showfiles = ({
                   <div className="sf-tabs">
                     <button
                       className={`sf-tab ${activeTab === 'saved' ? 'sf-tab--active' : ''}`}
-                      onClick={() => setActiveTab('saved')}
+                      onClick={() => switchTab('saved')}
                     >
                       <SolutionOutlined /> Saved
                     </button>
                     <button
                       className={`sf-tab ${activeTab === 'recent' ? 'sf-tab--active' : ''}`}
-                      onClick={() => setActiveTab('recent')}
+                      onClick={() => switchTab('recent')}
                     >
                       Recent
                     </button>
@@ -536,7 +773,7 @@ const Showfiles = ({
                         <>
                           {founditems.solutions.map((x, y) => (
                             <div
-                              className={`sf-list-item ${savedquery?.id === x.id ? 'sf-list-item--active' : ''}`}
+                              className={`sf-list-item ${savedquery?.id != null && savedquery.id === x.id ? 'sf-list-item--active' : ''}`}
                               onClick={() => { setSavedquery(x); setRawView(true) }}
                               key={x.id ?? y}
                             >
@@ -565,12 +802,12 @@ const Showfiles = ({
                         </div>
                       )
                     ) : (
-                      recentItems.length > 0 ? (
-                        recentItems.map((x, y) => (
+                      filteredRecents.length > 0 ? (
+                        filteredRecents.map((x) => (
                           <div
-                            className={`sf-list-item ${savedquery?.course === x.course ? 'sf-list-item--active sf-list-item--recent' : ''}`}
+                            className={`sf-list-item ${savedquery?.course === x.course && savedquery?.id == null ? 'sf-list-item--active sf-list-item--recent' : ''}`}
                             onClick={() => { setSavedquery(x); setRawView(true) }}
-                            key={'r' + y}
+                            key={'r' + x.course}
                           >
                             <span className="sf-list-item__initial sf-list-item__initial--recent">{(x.course||'?')[0].toUpperCase()}</span>
                             <div className="sf-list-item__info">
@@ -581,7 +818,9 @@ const Showfiles = ({
                           </div>
                         ))
                       ) : (
-                        <div className="sf-list-empty">No recent activity</div>
+                        <div className="sf-list-empty">
+                          {searchTerm.trim() ? `No recents match "${searchTerm.trim()}"` : 'No recent activity'}
+                        </div>
                       )
                     )}
                   </div>
@@ -603,14 +842,14 @@ const Showfiles = ({
                   {!isLoading && (
                     <div className="sf-view-toggle">
                       <button
-                        className={`sf-view-toggle__btn ${rawView ? 'sf-view-toggle__btn--active' : ''}`}
-                        onClick={() => setRawView(true)}
+                        className={`sf-view-toggle__btn ${rawView && !aiTool ? 'sf-view-toggle__btn--active' : ''}`}
+                        onClick={() => { setRawView(true); setAiTool(null) }}
                       >
                         <CheckCircleOutlined style={{marginRight:5}}/>{" Solved"}
                       </button>
                       <button
-                        className={`sf-view-toggle__btn ${!rawView ? 'sf-view-toggle__btn--active' : ''}`}
-                        onClick={() => setRawView(false)}
+                        className={`sf-view-toggle__btn ${!rawView && !aiTool ? 'sf-view-toggle__btn--active' : ''}`}
+                        onClick={() => { setRawView(false); setAiTool(null) }}
                       >
                         <CodeOutlined style={{marginRight:5}}/> Raw
                       </button>
@@ -634,13 +873,18 @@ const Showfiles = ({
                         className={`sf-pill-btn sf-pill-btn--regenerate ${hasError ? '' : 'sf-pill-btn--regenerate-ok'}`}
                         onClick={handleRegenerate}
                         disabled={!onRegenerate || isRegenerating}
-                        title={hasError ? 'Try generating the solution again' : 'Generate a fresh solution (uses a credit)'}
+                        title={
+                          pickedModel
+                            ? `Regenerate with ${labelForModel(pickedModel)} (uses a credit)`
+                            : hasError ? 'Try generating the solution again' : 'Generate a fresh solution (uses a credit)'
+                        }
                       >
                         {isRegenerating ? (
                           <span className="sf-modal__spinner sf-modal__spinner--small" />
                         ) : (
                           <>
                             <ReloadOutlined /> Regenerate
+                            {pickedModel && <span className="sf-pill-btn__model">· {labelForModel(pickedModel)}</span>}
                           </>
                         )}
                       </button>
@@ -653,8 +897,41 @@ const Showfiles = ({
                   </div>
                 </div>
 
+                {/* AI tools — the Learning Hub's generators, working on this solution */}
+                {!isLoading && (
+                  <div className="sf-aistrip" role="toolbar" aria-label="AI study tools">
+                    <span className="sf-aistrip__label"><SparkIcon size={12} /> AI tools</span>
+                    <div className="sf-aistrip__scroll">
+                      {AI_TOOLS.map((t, i) => (
+                        <React.Fragment key={t.key}>
+                          {i > 0 && AI_TOOLS[i - 1].group !== t.group && <span className="sf-aistrip__sep" aria-hidden="true" />}
+                          <button
+                            type="button"
+                            className={`sf-ai-chip ${aiTool === t.key ? 'sf-ai-chip--active' : ''}`}
+                            onClick={() => toggleAiTool(t.key)}
+                            aria-pressed={aiTool === t.key}
+                            title={t.blurb}
+                          >
+                            <t.Icon size={14} strokeWidth={1.8} /> {t.label}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {aiMounted && !isLoading && (
+                  <SolutionAIPanel
+                    activeTool={aiTool}
+                    onSelectTool={selectAiTool}
+                    onClose={() => setAiTool(null)}
+                    sourceText={aiSourceText}
+                    courseName={aiCourse}
+                  />
+                )}
+
                 {/* Content body */}
-                <div className="sf-content__body">
+                <div className="sf-content__body" hidden={!!aiTool && !isLoading}>
                   {isLoading ? (
                     <div className="sf-content__loading">
                       {[90,75,85,60,80].map((w,i) => (
@@ -814,7 +1091,7 @@ const STYLES = `
     color: #c8c8d0;
   }
   .sf-drawer__title-course { color: #7dd3fc; }
-  .sf-drawer__credits { margin-left: auto; flex-shrink: 0; }
+  .sf-drawer__credits { margin-left: auto; flex-shrink: 0; display: flex; align-items: center; gap: 8px; min-width: 0; }
   .sf-credits-pill__icon { font-size: 11px; }
   .sf-credits-pill {
     display: flex;
@@ -1376,6 +1653,251 @@ const STYLES = `
   .sf-modal__spinner--small { width: 12px; height: 12px; border-width: 2px; }
   @keyframes sf-spin { to { transform: rotate(360deg); } }
 
+
+  /* ── Model picker (next to the credits pill) ── */
+  .sf-model { position: relative; min-width: 0; }
+  .sf-model__btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 170px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #1e1e2a;
+    border: 1px solid #2e2e3a;
+    color: #a5b4fc;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .sf-model__btn:hover:not(:disabled) { background: #25253a; }
+  .sf-model__btn:disabled { opacity: .55; cursor: not-allowed; }
+  .sf-model__btn--pending { border-color: #4338ca; box-shadow: 0 0 0 1px rgba(99,102,241,.3); }
+  .sf-model__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .sf-model__caret { font-size: 9px; color: #666; flex-shrink: 0; }
+  .sf-model__pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 280px;
+    max-width: calc(100vw - 24px);
+    background: #111115;
+    border: 1px solid #2a2a38;
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.6);
+    z-index: 30;
+    overflow: hidden;
+    animation: sf-fadeup .15s ease;
+  }
+  @keyframes sf-fadeup { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .sf-model__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #1e1e24;
+    color: #555;
+    font-size: 12px;
+  }
+  .sf-model__search input {
+    flex: 1;
+    min-width: 0;
+    background: #1a1a20;
+    border: 1px solid #2a2a34;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #d0d0da;
+    outline: none;
+  }
+  .sf-model__search input:focus { border-color: #4f46e5; }
+  .sf-model__list { max-height: 260px; overflow-y: auto; padding: 6px; }
+  .sf-model__list::-webkit-scrollbar { width: 4px; }
+  .sf-model__list::-webkit-scrollbar-thumb { background: #2a2a36; border-radius: 4px; }
+  .sf-model__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #c0c0cc;
+    font-size: 12px;
+    text-align: left;
+  }
+  .sf-model__row--btn { cursor: pointer; transition: background .12s, border-color .12s; }
+  .sf-model__row--btn:hover { background: #16161e; border-color: #2a2a38; }
+  .sf-model__row--active { background: #12122a; border-color: #4338ca; color: #a5b4fc; }
+  .sf-model__row-icon { color: #555; font-size: 12px; flex-shrink: 0; }
+  .sf-model__row--active .sf-model__row-icon { color: #6366f1; }
+  .sf-model__row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sf-model__tag {
+    flex-shrink: 0;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: #1c2a14;
+    color: #a3e635;
+    border: 1px solid #365314;
+  }
+  .sf-model__check { color: #6366f1; font-size: 11px; flex-shrink: 0; }
+  .sf-model__empty { padding: 16px 10px; text-align: center; font-size: 12px; color: #666; }
+  .sf-model__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 9px 12px;
+    border-top: 1px solid #1e1e24;
+    font-size: 11px;
+    color: #666;
+    line-height: 1.4;
+  }
+  .sf-model__foot strong { color: #94a3b8; font-weight: 600; }
+  .sf-model__retry {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #a5b4fc;
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .sf-pill-btn__model { opacity: .8; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── AI tools strip (lives under the Solved/Raw toolbar) ── */
+  .sf-aistrip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #1e1e24;
+    background: #0d0d10;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+  .sf-aistrip__label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #6366f1;
+  }
+  .sf-aistrip__scroll {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 14px 2px 0;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  }
+  .sf-aistrip__scroll::-webkit-scrollbar { display: none; }
+  .sf-aistrip__sep { flex: none; width: 1px; height: 16px; background: #2a2a38; margin: 0 2px; }
+  .sf-ai-chip {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 20px;
+    border: 1px solid #2a2a38;
+    background: #1a1a22;
+    color: #a0a0b8;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .sf-ai-chip:hover { background: #22222e; color: #e0e0e8; }
+  .sf-ai-chip--active {
+    background: #1e1b4b;
+    border-color: #4338ca;
+    color: #a5b4fc;
+    box-shadow: 0 0 0 1px rgba(99,102,241,.25);
+  }
+  .sf-ai-chip:focus-visible,
+  .sf-model__btn:focus-visible,
+  .sf-model__row--btn:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+
+  /* ── AI tool panel ──
+     The tools are the Learning Hub's own components, which theme themselves
+     through --hub-* variables. Re-pointing those variables here (always dark,
+     indigo accent) makes them match this page instead of the Hub's theme. */
+  .sf-ai {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    --hub-bg: #0d0d0f;
+    --hub-surface-1: #111115;
+    --hub-surface-2: #1a1a22;
+    --hub-border: #2a2a38;
+    --hub-text: #e8e8f0;
+    --hub-text-muted: #8b8ba0;
+    --hub-accent: #4f46e5;
+    --hub-accent-2: #7dd3fc;
+    --hub-danger: #f87171;
+    --hub-success: #4ade80;
+    color: var(--hub-text);
+  }
+  .sf-ai[hidden], .sf-ai__pane[hidden] { display: none !important; }
+  .sf-ai__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #1e1e24;
+    flex-shrink: 0;
+  }
+  .sf-ai__head-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .sf-ai__title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #c8c8d0; }
+  .sf-ai__blurb { font-size: 11px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sf-ai__notice {
+    margin: 12px 16px 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #1c1a0e;
+    border: 1px solid #3d3200;
+    color: #d4b84a;
+    font-size: 12px;
+    line-height: 1.5;
+    flex-shrink: 0;
+  }
+  .sf-ai__body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 28px; }
+  .sf-ai__body::-webkit-scrollbar { width: 5px; }
+  .sf-ai__body::-webkit-scrollbar-thumb { background: #2a2a36; border-radius: 4px; }
+  .sf-ai__loading { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+  .sf-ai__fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 28px 16px;
+    text-align: center;
+    color: #f87171;
+    font-size: 13px;
+  }
+  .sf-ai__fallback p { margin: 0; }
+  .sf-ai .hub-page { max-width: 720px; margin: 0 auto; padding: 0; }
+  .sf-ai .hub-page > .hub-eyebrow { display: none; }
+  .sf-ai .hub-page--chat { min-height: 50vh; }
+  .sf-ai .hub-title { font-size: 20px; margin: 0 0 14px; }
+
   /* ── Responsive ── */
   @media (max-width: 700px) {
     /* PDF pane fills the whole screen normally */
@@ -1407,6 +1929,17 @@ const STYLES = `
 
     /* Hide the Top up label to save space — icon + credits number is enough */
     .sf-credits-pill__topup { display: none; }
+
+    /* Model picker: shrink the chip, and let the menu span the screen width
+       (anchoring it to the chip would push it off the left edge on phones). */
+    .sf-drawer__credits { gap: 6px; }
+    .sf-model__btn { max-width: 104px; padding: 4px 8px; }
+    .sf-model__pop { position: fixed; top: 56px; left: 12px; right: 12px; width: auto; max-width: none; }
+
+    /* AI tools: drop the label, give the chips the whole row */
+    .sf-aistrip__label { display: none; }
+    .sf-ai__body { padding: 14px 14px 24px; }
+    .sf-ai__head { padding: 8px 12px; }
   }
 
   @keyframes sf-slide-up {

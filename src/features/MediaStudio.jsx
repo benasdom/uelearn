@@ -15,13 +15,17 @@ const TABS = [
   { key: 'history', label: 'History' },
 ]
 
-export default function MediaStudio({ onNavigate }) {
-  const [tab, setTab] = useState('image')
+export default function MediaStudio({ onNavigate, initialPrompt = '', initialTab = 'image', compact = false }) {
+  const [tab, setTab] = useState(initialTab)
 
   return (
     <div className="hub-page">
-      <p className="hub-eyebrow">AI STUDIO</p>
-      <h2 className="hub-title">Image &amp; video generator</h2>
+      {!compact && (
+        <>
+          <p className="hub-eyebrow">AI STUDIO</p>
+          <h2 className="hub-title">Image &amp; video generator</h2>
+        </>
+      )}
 
       <div className="hub-tabs">
         {TABS.map((t) => (
@@ -35,8 +39,8 @@ export default function MediaStudio({ onNavigate }) {
         ))}
       </div>
 
-      {tab === 'image' && <ImagePanel />}
-      {tab === 'video' && <VideoPanel />}
+      {tab === 'image' && <ImagePanel initialPrompt={initialPrompt} />}
+      {tab === 'video' && <VideoPanel initialPrompt={initialPrompt} />}
       {tab === 'history' && <HistoryPanel />}
     </div>
   )
@@ -98,8 +102,8 @@ function formatDate(iso) {
 // IMAGE TAB
 // ===========================================================================
 
-function ImagePanel() {
-  const [prompt, setPrompt] = useState('')
+function ImagePanel({ initialPrompt = '' }) {
+  const [prompt, setPrompt] = useState(initialPrompt)
   const [status, setStatus] = useState('idle') // idle | loading | done
   const [error, setError] = useState(null)
   const [result, setResult] = useState(null) // generation object
@@ -209,8 +213,8 @@ function ImagePanel() {
 // VIDEO TAB
 // ===========================================================================
 
-function VideoPanel() {
-  const [prompt, setPrompt] = useState('')
+function VideoPanel({ initialPrompt = '' }) {
+  const [prompt, setPrompt] = useState(initialPrompt)
   const [status, setStatus] = useState('idle') // idle | starting | processing | done
   const [error, setError] = useState(null)
   const [job, setJob] = useState(null) // generation object, updated as it polls

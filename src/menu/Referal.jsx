@@ -89,10 +89,13 @@ let storeddata;
     if (accessToken && refreshToken) {
       fetchWithAuth(url,options)
       .then((data)=>{
+        // "No referrals yet" can arrive as [], {} or null — all mean empty.
         if (Array.isArray(data)) {
           setrefered(data);
         } else {
-          console.warn("Unexpected data format:", data);
+          if (data && typeof data === "object" && Object.keys(data).length > 0) {
+            console.warn("Unexpected referrals format:", data);
+          }
           setrefered([]);
         }
         setloaded(true);

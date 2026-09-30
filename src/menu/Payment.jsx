@@ -104,7 +104,7 @@ const handleSetCredits = (val) => {
       .then((data) => {
         console
         // Assume backend returns the actual added credits in 'data.added'
-        const creditsAdded = data.added || tier.creditReward;
+        const creditsAdded = data?.added || tier.creditReward;
 
         const updatedUserData = {
           ...udata,

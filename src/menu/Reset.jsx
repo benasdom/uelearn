@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeftOutlined, LockOutlined, EyeOutlined, EyeInvisibleOutlined, CheckCircleFilled } from '@ant-design/icons'
-import { domain } from './authfetch'
+import { domain, safeJson, getErrorCode, fieldErrorsFrom, friendlyErrorMessage } from './authfetch'
 import mainlogo from '/imgs/titled.png'
 
 import LoadComponent from "../Loadcomponent";
@@ -69,15 +69,26 @@ const Reset = ({ onBack, onResetSuccess }) => {
         body: JSON.stringify({ token, newPassword }),
       });
 
-      let data = {};
-      try { data = await response.json(); } catch (_) { /* empty body is fine */ }
+      const data = (await safeJson(response)) ?? {};
+      const code = getErrorCode(data);
 
-      if (response.status === 400 || response.status === 401) {
-        setTokenInvalid(true);
-        throw new Error(data?.message || "This reset link is invalid or has expired.");
-      }
       if (!response.ok) {
-        throw new Error(data?.message || "Couldn't reset your password. Please try again.");
+        // A weak/invalid new password is a 400 too — but the link is still
+        // good, so keep the form usable and show what to fix.
+        if (code === "VALIDATION_ERROR") {
+          const fixes = Object.values(fieldErrorsFrom(data));
+          throw new Error(fixes.length ? fixes.join(" ") : friendlyErrorMessage(data, response.status));
+        }
+        // Server trouble is transient: don't tell the person their link died.
+        if (response.status >= 500) {
+          throw new Error("Couldn't reset your password right now. Please try again in a moment.");
+        }
+        // Any other 400/401 (bad, expired or already-used token).
+        if (response.status === 400 || response.status === 401) {
+          setTokenInvalid(true);
+          throw new Error(friendlyErrorMessage(data, response.status, "This reset link is invalid or has expired."));
+        }
+        throw new Error(friendlyErrorMessage(data, response.status, "Couldn't reset your password. Please try again."));
       }
 
       setResetDone(true);

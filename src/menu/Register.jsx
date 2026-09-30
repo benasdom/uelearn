@@ -6,7 +6,7 @@ import {
 } from "@ant-design/icons";
 import {Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { domain } from "./authfetch";
+import { domain, safeJson, friendlyErrorMessage } from "./authfetch";
 
 import jess         from "../../public/imgs/jess.jpg";
 import brown        from "../../public/imgs/brown.jpg";
@@ -162,8 +162,13 @@ export default function Register() {
 
   /* ── session ── */
   const populate = (result) => {
+    // Registering with a referral code returns userData as
+    // { user, referal_user } instead of a plain user object — unwrap it so the
+    // stored profile has firstName / credits / etc. at the top level.
+    const rawUser = result.data?.userData;
+    const profile = rawUser && typeof rawUser === "object" && "user" in rawUser ? rawUser.user : rawUser;
     const userData = {
-      ...result.data.userData,
+      ...(profile ?? {}),
       accessToken:  result.data.token,
       refreshToken: result.data.refreshToken,
     };
@@ -193,13 +198,13 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
       });
-      const result = await res.json();
+      const result = await safeJson(res);
 
-      if (result.status) {
+      if (result?.status) {
         populate(result);
         setview(VIEW.OTP);
       } else {
-        showToast(result.message + (result.details ?? ""));
+        showToast(friendlyErrorMessage(result, res.status));
       }
     } catch (err) {
       showToast("Network error — please check your connection and try again.");
@@ -217,14 +222,16 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ email: loginEmail.trim(), password: loginPwd }),
       });
-      const result = await res.json();
+      const result = await safeJson(res);
 
-      if (result.status) {
+      if (result?.status) {
         populate(result);
         showToast("Welcome back! Signing you in…", true);
         setTimeout(activateUser, 900);
       } else {
-        showToast(result.message + (result.details ?? ""));
+        // INVALID_CREDENTIALS, SSO_LOGIN_REQUIRED and ACCOUNT_SUSPENDED all
+        // arrive with a user-safe `message`; never `error.details` on a 5xx.
+        showToast(friendlyErrorMessage(result, res.status));
       }
     } catch (err) {
       showToast("Network error — please check your connection and try again.");
@@ -289,9 +296,9 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(googlePayload),
       });
-      const result = await res.json();
+      const result = await safeJson(res);
 
-      if (result.status) {
+      if (result?.status) {
         populate(result);
         if (isLogin) {
           showToast("Welcome back! Signing you in…", true);
@@ -300,7 +307,7 @@ export default function Register() {
           setview(VIEW.OTP);
         }
       } else {
-        showToast(result.message + (result.details ?? ""));
+        showToast(friendlyErrorMessage(result, res.status));
       }
     } catch (err) {
       showToast("Network error — please check your connection and try again.");
