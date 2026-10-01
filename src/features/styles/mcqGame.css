@@ -1,0 +1,873 @@
+/* Galactic Defense arcade surface.
+   Kept separate from the solution viewer so the game does not leak global
+   body/canvas/button styles into Showfiles or other Learning Hub tools. */
+
+.mcq-game {
+  --mcq-cyan: #00f3ff;
+  --mcq-pink: #ff007f;
+  --mcq-purple: #b000ff;
+  --mcq-green: #00ff88;
+  --mcq-amber: #ffb700;
+  position: relative;
+  width: 100%;
+  min-height: 680px;
+  height: min(84vh, 900px);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 24px;
+  background: #030712;
+  color: #f8fafc;
+  font-family: Rajdhani, system-ui, sans-serif;
+  isolation: isolate;
+}
+
+.mcq-game button {
+  font: inherit;
+}
+
+.mcq-game__scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  opacity: .24;
+  background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,.3) 50%);
+  background-size: 100% 4px;
+  mix-blend-mode: screen;
+}
+
+.mcq-game--shake {
+  animation: mcq-game-shake .35s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes mcq-game-shake {
+  10%,90% { transform: translate3d(-4px,0,0); }
+  20%,80% { transform: translate3d(6px,0,0); }
+  30%,50%,70% { transform: translate3d(-8px,0,0); }
+  40%,60% { transform: translate3d(8px,0,0); }
+}
+
+.mcq-game__menu,
+.mcq-game__results {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(0,243,255,.08), transparent 40%),
+    rgba(2,6,23,.95);
+  backdrop-filter: blur(14px);
+}
+
+.mcq-game__menu-card,
+.mcq-game__results-card {
+  width: min(820px, 100%);
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(15,23,42,.90);
+  box-shadow: 0 0 30px rgba(0,243,255,.14), inset 0 0 20px rgba(0,243,255,.04);
+  border-radius: 28px;
+  padding: 28px;
+}
+
+.mcq-game__menu-card {
+  max-height: 95%;
+  overflow: auto;
+  text-align: center;
+}
+
+.mcq-game__hero-icon,
+.mcq-game__result-icon {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+  border-radius: 20px;
+  color: white;
+  background: linear-gradient(135deg, rgba(0,243,255,.9), rgba(176,0,255,.9), rgba(255,0,127,.9));
+  box-shadow: 0 0 26px rgba(0,243,255,.25);
+}
+
+.mcq-game__result-icon {
+  font-size: 34px;
+}
+
+.mcq-game__result-icon.is-failure {
+  background: linear-gradient(135deg, rgba(255,0,127,.85), rgba(176,0,255,.85));
+}
+
+.mcq-game__eyebrow,
+.mcq-game__section-label {
+  margin: 0;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--mcq-cyan);
+  font-size: 10px;
+}
+
+.mcq-game__title {
+  margin: 4px 0 8px;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: clamp(26px, 4vw, 44px);
+  font-weight: 900;
+  letter-spacing: .07em;
+  background: linear-gradient(90deg, #00f3ff, #ff007f, #ffb700);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.mcq-game__menu-card > .mcq-game__eyebrow {
+  color: #ff4ba7;
+}
+
+.mcq-game__description,
+.mcq-game__results-subtitle {
+  margin: 0 auto 22px;
+  max-width: 660px;
+  color: #cbd5e1;
+  line-height: 1.45;
+  font-size: 14px;
+}
+
+.mcq-game__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  text-align: left;
+  color: #cbd5e1;
+  background: rgba(15,23,42,.82);
+  border: 1px solid rgba(148,163,184,.18);
+  font-size: 12px;
+}
+
+.mcq-game__notice--loading {
+  color: #a5f3fc;
+  border-color: rgba(0,243,255,.25);
+}
+
+.mcq-game__notice--info {
+  color: #c4b5fd;
+  border-color: rgba(176,0,255,.25);
+}
+
+.mcq-game__selection-block {
+  margin-top: 20px;
+  text-align: left;
+}
+
+.mcq-game__section-label {
+  margin-bottom: 9px;
+}
+
+.mcq-game__ship-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 10px;
+}
+
+.mcq-game__ship,
+.mcq-game__category {
+  appearance: none;
+  color: #cbd5e1;
+  background: rgba(15,23,42,.78);
+  border: 1px solid #253047;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: .18s ease;
+}
+
+.mcq-game__ship {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.mcq-game__ship:hover,
+.mcq-game__category:hover,
+.mcq-game__ship.is-selected,
+.mcq-game__category.is-selected {
+  border-color: var(--mcq-cyan);
+  background: rgba(0,243,255,.08);
+  box-shadow: 0 0 18px rgba(0,243,255,.10);
+  transform: translateY(-1px);
+}
+
+.mcq-game__ship.is-selected,
+.mcq-game__category.is-selected {
+  color: white;
+  border-width: 2px;
+}
+
+.mcq-game__ship-icon {
+  font-size: 26px;
+  margin-bottom: 4px;
+}
+
+.mcq-game__ship strong {
+  font-size: 13px;
+}
+
+.mcq-game__ship span:last-child {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.mcq-game__category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 9px;
+}
+
+.mcq-game__category {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mcq-game__launch {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 15px;
+  cursor: pointer;
+  color: white;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: .04em;
+  background: linear-gradient(90deg, #00a7b5, #7340e8, #d61c76);
+  box-shadow: 0 10px 30px rgba(0,243,255,.16);
+  transition: .18s ease;
+}
+
+.mcq-game__launch:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
+.mcq-game__launch:active:not(:disabled) { transform: scale(.985); }
+.mcq-game__launch:disabled { opacity: .45; cursor: not-allowed; }
+
+.mcq-game__menu-footer {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 13px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.mcq-game__back-link,
+.mcq-game__exit {
+  margin: 12px auto 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.mcq-game__back-link:hover,
+.mcq-game__exit:hover { color: white; }
+
+.mcq-game__play {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.mcq-game__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #030712;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.mcq-game__hud {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.mcq-game__hud-top {
+  width: min(1200px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.mcq-game__hud-stat {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 15px;
+  background: rgba(15,23,42,.86);
+  backdrop-filter: blur(13px);
+}
+
+.mcq-game__hud-stat--shields { border-color: rgba(0,243,255,.28); color: #67e8f9; }
+.mcq-game__hud-stat--combo { flex-direction: column; justify-content: center; gap: 0; min-width: 104px; border-color: rgba(255,183,0,.28); color: #fbbf24; }
+
+.mcq-game__hud-stat > strong {
+  min-width: 80px;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 18px;
+  color: #a5f3fc;
+  text-align: center;
+}
+
+.mcq-game__hud-label {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 8px;
+  letter-spacing: .16em;
+  color: #64748b;
+}
+
+.mcq-game__hud-stat--combo span {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.mcq-game__hud-stat--combo small {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 7px;
+  margin-top: 2px;
+  color: #fcd34d;
+}
+
+.mcq-game__hearts {
+  display: flex;
+  gap: 4px;
+  color: #ec4899;
+  font-size: 17px;
+}
+
+.mcq-game__hearts .is-off { opacity: .18; }
+
+.mcq-game__hud-actions {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mcq-game__action,
+.mcq-game__sound {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #cbd5e1;
+  background: rgba(15,23,42,.88);
+  border: 1px solid rgba(255,255,255,.14);
+  transition: .16s ease;
+}
+
+.mcq-game__action b {
+  min-width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+  font-size: 9px;
+}
+
+.mcq-game__action--pink { color: #f9a8d4; border-color: rgba(255,0,127,.35); }
+.mcq-game__action--cyan { color: #a5f3fc; border-color: rgba(0,243,255,.35); }
+.mcq-game__action--green { color: #a7f3d0; border-color: rgba(0,255,136,.35); }
+
+.mcq-game__action:disabled {
+  cursor: not-allowed;
+  opacity: .35;
+}
+
+.mcq-game__sound {
+  color: #6ee7b7;
+}
+
+.mcq-game__question-panel {
+  width: min(1200px, calc(100% - 0px));
+  margin: 6px auto 0;
+  padding: 12px 15px;
+  border: 2px solid rgba(176,0,255,.34);
+  border-radius: 18px;
+  background: rgba(15,23,42,.86);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 0 30px rgba(176,0,255,.06), inset 0 0 18px rgba(176,0,255,.03);
+}
+
+.mcq-game__question-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  color: #f472b6;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.mcq-game__sector,
+.mcq-game__question-meta-right,
+.mcq-game__read-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mcq-game__question-meta-right { gap: 12px; }
+
+.mcq-game__read-btn {
+  pointer-events: auto;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.mcq-game__read-btn:hover { color: var(--mcq-cyan); }
+
+.mcq-game__question-panel h2 {
+  max-height: 104px;
+  overflow: auto;
+  margin: 0;
+  padding-right: 4px;
+  color: #f8fafc;
+  font-size: clamp(14px, 2vw, 21px);
+  line-height: 1.35;
+  text-align: center;
+}
+
+.mcq-game__freeze-badge {
+  width: fit-content;
+  margin: 7px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(8,145,178,.16);
+  border: 1px solid rgba(34,211,238,.22);
+  color: #67e8f9;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 8px;
+}
+
+.mcq-game__bottom {
+  width: min(1000px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.mcq-game__lockon {
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid rgba(148,163,184,.15);
+  color: #fcd34d;
+  font-size: 11px;
+  background: rgba(15,23,42,.7);
+}
+
+.mcq-game__lockon strong {
+  color: white;
+  font-weight: 700;
+}
+
+.mcq-game__mobile-keys {
+  display: none;
+  pointer-events: auto;
+  width: 100%;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 7px;
+}
+
+.mcq-game__mobile-keys button {
+  min-height: 40px;
+  border-radius: 12px;
+  color: #a5f3fc;
+  background: rgba(15,23,42,.86);
+  border: 1px solid rgba(0,243,255,.32);
+}
+
+.mcq-game__mobile-keys button:disabled {
+  opacity: .25;
+}
+
+.mcq-game__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 8px 15px;
+  border: 1px solid rgba(148,163,184,.14);
+  border-radius: 999px;
+  color: #64748b;
+  font-size: 10px;
+  background: rgba(15,23,42,.78);
+  backdrop-filter: blur(10px);
+}
+
+.mcq-game__controls kbd {
+  margin: 0 2px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #a5f3fc;
+  background: #111827;
+  border: 1px solid #334155;
+  font-size: 9px;
+}
+
+.mcq-game__exit {
+  pointer-events: auto;
+  margin-top: 0;
+}
+
+.mcq-game__results {
+  align-items: flex-start;
+  padding-top: 20px;
+}
+
+.mcq-game__results-card {
+  max-height: 96%;
+  overflow: auto;
+  text-align: center;
+}
+
+.mcq-game__results-card h2 {
+  margin: 4px 0 4px;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: clamp(24px, 4vw, 34px);
+}
+
+.mcq-game__stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 8px;
+  margin: 18px 0 14px;
+}
+
+.mcq-game__stats-grid > div {
+  padding: 10px 8px;
+  border: 1px solid rgba(148,163,184,.14);
+  border-radius: 14px;
+  background: rgba(15,23,42,.72);
+}
+
+.mcq-game__stats-grid span {
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 8px;
+}
+
+.mcq-game__stats-grid strong {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 18px;
+}
+
+.mcq-game__stats-grid > div:nth-child(2) strong { color: #34d399; }
+.mcq-game__stats-grid > div:nth-child(3) strong { color: #fbbf24; }
+.mcq-game__stats-grid > div:nth-child(4) strong { color: #c084fc; }
+
+.mcq-game__review {
+  max-height: 40vh;
+  overflow: auto;
+  padding: 10px;
+  text-align: left;
+  border: 1px solid rgba(148,163,184,.14);
+  border-radius: 17px;
+  background: rgba(2,6,23,.55);
+}
+
+.mcq-game__review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--mcq-cyan);
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.mcq-game__review-head span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mcq-game__review-head small {
+  color: #475569;
+  font-family: Rajdhani, system-ui, sans-serif;
+  font-size: 9px;
+}
+
+.mcq-game__review-empty {
+  padding: 18px 10px;
+  color: #64748b;
+  text-align: center;
+  font-size: 12px;
+}
+
+.mcq-game__review-item {
+  margin-top: 8px;
+  padding: 11px;
+  border: 1px solid rgba(148,163,184,.14);
+  border-radius: 14px;
+  background: rgba(15,23,42,.72);
+}
+
+.mcq-game__review-item.is-correct {
+  border-color: rgba(0,255,136,.28);
+  background: rgba(0,255,136,.045);
+}
+
+.mcq-game__review-item.is-wrong {
+  border-color: rgba(255,0,127,.28);
+  background: rgba(255,0,127,.045);
+}
+
+.mcq-game__review-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.mcq-game__review-item.is-correct .mcq-game__review-item-top > span { color: #34d399; }
+.mcq-game__review-item.is-wrong .mcq-game__review-item-top > span { color: #f472b6; }
+
+.mcq-game__review-item-top small {
+  color: #64748b;
+  font-size: 8px;
+}
+
+.mcq-game__review-item p {
+  margin: 4px 0 0;
+  color: #cbd5e1;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mcq-game__review-question {
+  color: white !important;
+  font-size: 12px !important;
+  font-weight: 800;
+}
+
+.mcq-game__correct-answer {
+  color: #86efac !important;
+}
+
+.mcq-game__solution-toggle {
+  margin-top: 8px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #67e8f9;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.mcq-game__solution {
+  margin-top: 7px;
+  padding: 8px;
+  border-left: 2px solid rgba(0,243,255,.45);
+  background: rgba(14,116,144,.06);
+  color: #cbd5e1;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mcq-game__solution p {
+  margin-top: 4px;
+  color: #94a3b8;
+}
+
+.mcq-game__result-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.mcq-game__main-menu {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 14px;
+  border: 1px solid #334155;
+  background: #111827;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.mcq-game__main-menu:hover { background: #1e293b; }
+
+@media (max-width: 720px) {
+  .mcq-game {
+    min-height: 640px;
+    height: min(82vh, 760px);
+    border-radius: 18px;
+  }
+
+  .mcq-game__menu,
+  .mcq-game__results {
+    padding: 10px;
+  }
+
+  .mcq-game__menu-card,
+  .mcq-game__results-card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .mcq-game__ship-grid,
+  .mcq-game__category-grid,
+  .mcq-game__stats-grid {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .mcq-game__ship-grid .mcq-game__ship:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .mcq-game__hud {
+    padding: 8px;
+  }
+
+  .mcq-game__hud-top {
+    align-items: stretch;
+  }
+
+  .mcq-game__hud-stat {
+    flex: 1 1 auto;
+    min-height: 38px;
+    padding: 6px 9px;
+  }
+
+  .mcq-game__hud-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .mcq-game__action {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 5px;
+    font-size: 9px;
+  }
+
+  .mcq-game__action span {
+    display: none;
+  }
+
+  .mcq-game__sound {
+    flex: 0 0 40px;
+  }
+
+  .mcq-game__question-panel {
+    margin-top: 3px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .mcq-game__question-panel h2 {
+    max-height: 92px;
+    font-size: 14px;
+  }
+
+  .mcq-game__mobile-keys {
+    display: grid;
+  }
+
+  .mcq-game__controls {
+    display: none;
+  }
+
+  .mcq-game__bottom {
+    gap: 6px;
+  }
+
+  .mcq-game__review {
+    max-height: 36vh;
+  }
+
+  .mcq-game__result-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcq-game--shake {
+    animation: none;
+  }
+}

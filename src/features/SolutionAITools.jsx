@@ -10,13 +10,14 @@
 //     PDF + solution down with it.
 //   • Keep-alive for paid tools: switching tabs hides a tool instead of
 //     unmounting it, so a quiz that just cost credits isn't thrown away by
-//     a stray click. Study tools (decks / mock tests) read localStorage on
+//     a stray click (games stay alive too, so a round in progress survives
+//     a tab switch and its timers pause while hidden). Study tools (decks / mock tests) read localStorage on
 //     mount, so those remount every visit to always show fresh data.
 
 import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import {
   ListChecks, Layers, GraduationCap, Mic, MessagesSquare,
-  Clapperboard, Library, Timer, ArrowLeft, AlertTriangle,
+  Clapperboard, Library, Timer, ArrowLeft, AlertTriangle, Gamepad2,
 } from 'lucide-react'
 
 const AIGenerator   = lazy(() => import('./AIGenerator'))
@@ -26,6 +27,7 @@ const ChatInterface = lazy(() => import('./ChatInterface'))
 const MediaStudio   = lazy(() => import('./MediaStudio'))
 const Flashcards    = lazy(() => import('./Flashcards'))
 const MockTest      = lazy(() => import('./MockTest'))
+const McqGame       = lazy(() => import('./McqGame'))
 
 // ─── Tool registry ────────────────────────────────────────────────────────────
 // `group` splits the strip into "create with AI" and "study what you made".
@@ -36,6 +38,7 @@ export const AI_TOOLS = [
   { key: 'podcast',    group: 'create', label: 'Podcast',     Icon: Mic,           blurb: 'A two-host conversation about this topic you can listen to.' },
   { key: 'chat',       group: 'create', label: 'Chat',        Icon: MessagesSquare, blurb: 'Ask follow-up questions about this solution.' },
   { key: 'media',      group: 'create', label: 'Image & Video', Icon: Clapperboard, blurb: 'Generate an image or a short video. Uses credits.' },
+  { key: 'games',      group: 'create', label: 'Games',       Icon: Gamepad2,      blurb: 'Pick a game and play it with questions from this solution.' },
   { key: 'decks',      group: 'study',  label: 'My decks',    Icon: Library,       blurb: 'Review your flashcard decks with spaced repetition.' },
   { key: 'tests',      group: 'study',  label: 'Mock tests',  Icon: Timer,         blurb: 'Take timed practice tests you have saved.' },
 ]
@@ -158,6 +161,8 @@ export default function SolutionAIPanel({ activeTool, onSelectTool, onClose, sou
         return <ChatInterface context={seeds.chatContext} saveTitle={`Chat: ${(courseName || 'solution').slice(0, 60)}`} />
       case 'media':
         return <MediaStudio compact initialPrompt={seeds.mediaPrompt} />
+      case 'games':
+        return <McqGame sourceText={seeds.quizText} courseName={courseName} title="Study games" active={activeTool === 'games'} />
       case 'decks':
         return <Flashcards />
       case 'tests':
