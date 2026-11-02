@@ -81,7 +81,7 @@ function Badge({ achievement, index }) {
 }
 
 export default function Achievements() {
-  const [stats, setStats] = useState({ highestStreak: 0, cardsReviewed: 0, mockTestsTaken: 0, generations: 0 })
+  const [stats, setStats] = useState({ highestStreak: 0, cardsReviewed: 0, mockTestsTaken: 0, generations: 0, researchActions: 0 })
 
   useEffect(() => {
     const userInfo = getFromLocalStorage('userInfo', {})
@@ -91,6 +91,7 @@ export default function Achievements() {
       cardsReviewed: activity.cardsReviewed || 0,
       mockTestsTaken: activity.mockTestsTaken || 0,
       generations: activity.generations || 0,
+      researchActions: activity.researchActions || 0,
     })
   }, [])
 

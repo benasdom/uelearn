@@ -25,8 +25,8 @@ export function nextTier(highestStreak = 0) {
 }
 
 // XP: 10 per streak day (capped contribution) + activity from local features.
-export function computeXp({ highestStreak = 0, cardsReviewed = 0, mockTestsTaken = 0 }) {
-  return highestStreak * 10 + cardsReviewed * 2 + mockTestsTaken * 25
+export function computeXp({ highestStreak = 0, cardsReviewed = 0, mockTestsTaken = 0, researchActions = 0 }) {
+  return highestStreak * 10 + cardsReviewed * 2 + mockTestsTaken * 25 + researchActions * 3
 }
 
 export function levelForXp(xp) {

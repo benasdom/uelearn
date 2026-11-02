@@ -157,10 +157,14 @@ async function requestExercises(text, signal, _retryCount = 0) {
 /**
  * Generates exercises from arbitrary text, chunking long input as needed.
  * @param {string} fullText
- * @param {{ onProgress?: (done: number, total: number) => void, instruction?: string }} [opts]
+ * @param {{ onProgress?: (done: number, total: number) => void, instruction?: string, signal?: AbortSignal }} [opts]
  *   `instruction` is an optional plain-language steer prepended to every chunk
  *   (e.g. "Prefer flashcards"). The backend still decides the exercise mix.
- * @returns {Promise<{ exercises: object[], remainingCredits: number|undefined, partialErrors: string[] }>}
+ *   `signal` lets the caller cancel: the in-flight request is aborted, no
+ *   further chunks are sent, and whatever finished so far is returned with
+ *   `cancelled: true` (a request already received by the server may still be
+ *   billed — only the ones not yet sent are saved).
+ * @returns {Promise<{ exercises: object[], remainingCredits: number|undefined, partialErrors: string[], cancelled: boolean }>}
  */
 export async function generateExercisesFromText(fullText, opts = {}) {
   const trimmed = (fullText || '').trim()
@@ -170,15 +174,16 @@ export async function generateExercisesFromText(fullText, opts = {}) {
 
   const chunks = chunkText(trimmed)
   const list = chunks.length ? chunks : [trimmed]
-  const controller = new AbortController()
+  const signal = opts.signal || new AbortController().signal
   const allExercises = []
   const errors = []
   let remainingCredits
 
   for (let i = 0; i < list.length; i++) {
+    if (signal.aborted) break // cancelled between chunks — don't send the next one
     try {
       const payload = opts.instruction ? `${opts.instruction}\n\n${list[i]}` : list[i]
-      const { exercises, remainingCredits: rc } = await requestExercises(payload, controller.signal)
+      const { exercises, remainingCredits: rc } = await requestExercises(payload, signal)
       exercises.forEach((raw) => {
         const normalized = normalizeExercise(raw)
         if (normalized) allExercises.push(normalized)
@@ -191,11 +196,12 @@ export async function generateExercisesFromText(fullText, opts = {}) {
     }
   }
 
-  if (allExercises.length === 0 && errors.length > 0 && errors.length === list.length) {
+  const cancelled = signal.aborted
+  if (!cancelled && allExercises.length === 0 && errors.length > 0 && errors.length === list.length) {
     throw new Error(errors[0])
   }
 
-  return { exercises: allExercises, remainingCredits, partialErrors: errors }
+  return { exercises: allExercises, remainingCredits, partialErrors: errors, cancelled }
 }
 
 // ===== NORMALIZATION =====

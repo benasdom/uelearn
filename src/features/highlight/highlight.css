@@ -1,0 +1,115 @@
+/* ── Highlighter ─────────────────────────────────────────────────────────── */
+
+/* A highlight: a coloured pen stroke that wraps cleanly across line breaks. */
+.hl-mark {
+  border-radius: 3px;
+  padding: 0 0.08em;
+  margin: 0 -0.08em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+.hl-mark:hover { filter: brightness(0.94); }
+
+/* Highlightable text must stay selectable even inside game chrome that
+   switches selection off. */
+[data-hl-key] { -webkit-user-select: text; user-select: text; }
+
+/* Answer options rendered as role="button" <div>s (so their text can be
+   selected) need the interactive affordances a <button> gets for free. */
+.gm-option[role='button'],
+.hub-answer-option[role='button'] { cursor: pointer; }
+.gm-option[role='button'][aria-disabled='true'],
+.hub-answer-option[role='button'][aria-disabled='true'] { cursor: default; }
+.gm-option[role='button']:not([aria-disabled='true']):hover { border-color: var(--hub-accent); }
+.gm-option[role='button']:focus-visible,
+.hub-answer-option[role='button']:focus-visible { outline: 2px solid var(--hub-accent, #8b5cf6); outline-offset: 2px; }
+
+/* ── Floating toolbar ────────────────────────────────────────────────────── */
+.hl-toolbar {
+  position: fixed;
+  z-index: 2147483000; /* above the expanded drawer and fullscreen games */
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--hub-surface-1, #15161c);
+  color: var(--hub-text, #f2f3f5);
+  border: 1px solid var(--hub-border, #2a2d38);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  font: 600 12px/1 system-ui, sans-serif;
+  animation: hl-pop 0.12s ease-out;
+}
+@keyframes hl-pop { from { opacity: 0; transform: translateX(-50%) translateY(4px); } }
+
+.hl-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hl-row--meta { gap: 6px; }
+.hl-label { color: var(--hub-text-muted, #8a8e99); font-weight: 600; }
+
+.hl-swatch {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+  transition: transform 0.1s ease;
+}
+.hl-swatch:hover { transform: scale(1.12); }
+.hl-swatch:focus-visible { outline: 2px solid var(--hub-accent, #8b5cf6); outline-offset: 2px; }
+.hl-swatch.is-active { border-color: var(--hub-text, #fff); transform: scale(1.12); }
+
+/* "+" swatch hosting the native colour picker. */
+.hl-swatch--custom {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #818cf8, #f472b6, #f87171);
+  color: #111;
+  font-size: 16px;
+  font-weight: 800;
+}
+.hl-swatch--custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+.hl-seg {
+  display: inline-flex;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--hub-border, #2a2d38);
+}
+.hl-seg button {
+  padding: 6px 9px;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.hl-seg button + button { border-left: 1px solid var(--hub-border, #2a2d38); }
+.hl-seg button.is-active { background: var(--hub-accent, #8b5cf6); color: #fff; }
+
+.hl-btn {
+  margin-left: auto;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hub-border, #2a2d38);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.hl-btn + .hl-btn { margin-left: 0; }
+.hl-btn--danger { color: var(--hub-danger, #ef4444); border-color: color-mix(in srgb, var(--hub-danger, #ef4444) 45%, transparent); }
+.hl-btn--ghost { padding: 6px 8px; display: inline-flex; align-items: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hl-toolbar { animation: none; }
+  .hl-swatch, .hl-mark { transition: none; }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getAllCachedSolutions } from '../Searchlist'
+import { getAllCachedSolutions } from '../lib/solutionCache'
 
 const styles = `
 .sl-wrap {

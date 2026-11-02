@@ -3,6 +3,8 @@ import { Rocket, Plane, Shield, Pause, Play, Eye, Volume2, Zap, Snowflake, Light
 import { loadState, saveState } from '../../lib/localStore'
 import { shuffle } from '../../lib/gameQuestions'
 import { Stat } from './gameKit'
+import { HText } from '../highlight/Highlighter'
+import { hlKeys } from '../highlight/highlightStore'
 
 // Galactic Defense — a canvas shooter. Each question sends one drone per option
 // down the screen; shoot the drone carrying the CORRECT answer before it reaches
@@ -57,7 +59,7 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-export default function GalacticDefense({ questions, active, sfx, onComplete, best = 0 }) {
+export default function GalacticDefense({ questions, active, sfx, onComplete, onAnswer, best = 0 }) {
   const [phase, setPhase] = useState('brief')
   const [shipIdx, setShipIdx] = useState(() => {
     const v = loadState(SHIP_KEY, 0)
@@ -67,7 +69,7 @@ export default function GalacticDefense({ questions, active, sfx, onComplete, be
   const pickShip = (i) => { setShipIdx(i); saveState(SHIP_KEY, i) }
 
   if (phase === 'brief') return <Briefing shipIdx={shipIdx} onShip={pickShip} onLaunch={() => setPhase('play')} best={best} count={questions.length} />
-  return <Battle questions={questions} ship={SHIPS[shipIdx]} active={active} sfx={sfx} onComplete={onComplete} best={best} />
+  return <Battle questions={questions} ship={SHIPS[shipIdx]} active={active} sfx={sfx} onComplete={onComplete} onAnswer={onAnswer} best={best} />
 }
 
 // ─── Briefing ────────────────────────────────────────────────────────────────
@@ -109,14 +111,15 @@ function Briefing({ shipIdx, onShip, onLaunch, best, count }) {
 
 // ─── Battle ──────────────────────────────────────────────────────────────────
 
-function Battle({ questions, ship, active, sfx, onComplete, best }) {
+function Battle({ questions, ship, active, sfx, onComplete, onAnswer, best }) {
   const canvasRef = useRef(null)
   const stageRef = useRef(null)
   const actions = useRef({})
   const sfxRef = useRef(sfx)
   const doneRef = useRef(onComplete)
+  const answerRef = useRef(onAnswer)
   const activeRef = useRef(active)
-  useEffect(() => { sfxRef.current = sfx; doneRef.current = onComplete; activeRef.current = active })
+  useEffect(() => { sfxRef.current = sfx; doneRef.current = onComplete; answerRef.current = onAnswer; activeRef.current = active })
 
   const [hud, setHud] = useState({ lives: ship.lives, score: 0, streak: 0, qi: 0, charges: START_CHARGES, mode: 'fly', frozen: false })
   const [flash, setFlash] = useState(null)
@@ -269,6 +272,7 @@ function Battle({ questions, ship, active, sfx, onComplete, best }) {
       }
       g.showCorrect = status !== 'correct'
       g.review[g.qi] = { q: qq, status, picked: g.pickedWrong, points: pts }
+      answerRef.current?.(qq, status === 'correct', status === 'correct' ? undefined : status)
       g.endAfter = g.lives <= 0 || g.qi >= n - 1
       g.holdT = status === 'correct' ? (qq.explanation ? 2 : 1) : 3.2
       const titles = {
@@ -686,7 +690,7 @@ function Battle({ questions, ship, active, sfx, onComplete, best }) {
       </div>
 
       <div className="hub-card gd-q">
-        <p className="gd-q__text">{q.q}</p>
+        <HText as="p" className="gd-q__text" k={hlKeys.question(q)} text={q.q} />
         <div className="gd-q__tools">
           {hasSpeech && (
             <button type="button" className="gm-reveal" onClick={readAloud} aria-pressed={speaking}>
@@ -712,8 +716,8 @@ function Battle({ questions, ship, active, sfx, onComplete, best }) {
         {flash && (
           <div className={`gd-flash is-${flash.tone}`} role="status">
             <div className="gd-flash__title">{flash.tone === 'good' ? '✅' : flash.status === 'revealed' ? '👁' : '❌'} {flash.title}</div>
-            {flash.status !== 'correct' && <div className="gd-flash__ans">Correct answer: <strong>{flash.answer}</strong></div>}
-            {flash.explanation && <div className="gd-flash__why">{flash.explanation}</div>}
+            {flash.status !== 'correct' && <div className="gd-flash__ans">Correct answer: <HText as="strong" k={hlKeys.answer(q)} text={flash.answer} /></div>}
+            {flash.explanation && <HText as="div" className="gd-flash__why" k={hlKeys.explanation(q)} text={flash.explanation} />}
             <button type="button" className="hub-btn gd-flash__next" onClick={() => actions.current.next?.()}>
               <SkipForward size={14} /> {flash.last ? 'Finish' : 'Next'}
             </button>

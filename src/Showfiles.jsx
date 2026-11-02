@@ -16,7 +16,7 @@ import {
 } from '@ant-design/icons'
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { marked } from 'marked'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   GraduationCap, FolderOpen, LayoutGrid, Sparkles, Trophy,
   Wallet, Megaphone, BookOpen, Briefcase,
@@ -27,6 +27,9 @@ import racoon_save from '/imgs/save.jpg'
 import PdfViewer from './menu/PdfViewer'
 import SolutionAIPanel, { AI_TOOLS, solutionToPlainText } from './features/SolutionAITools'
 import { onCredits } from './lib/creditsBus'
+import { getAllCachedSolutions, readStudioUi, writeStudioUi } from './lib/solutionCache'
+import { HighlightProvider, HlHtml } from './features/highlight/Highlighter'
+import { hlKeys } from './features/highlight/highlightStore'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -400,12 +403,26 @@ const Showfiles = ({
   raw,
   onRegenerate, // ← re-runs the original fetch (PDF + AI solution); called with an optional model override
   onCreditsChange, // ← lets the parent persist a new balance when an AI tool reports one
+  fileId, // ← the open solution's id (route param); keys the remembered UI state
+  studioOnly = false, // ← /dashboard/solutions with nothing cached: no PDF, just the studio
 }) => {
-  const [solnsOpen, setSolnsOpen] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const uiId = studioOnly ? 'home' : fileId
+  // Where the student left this solution last time (drawer, tool, view, tab…).
+  const savedUiRef = useRef(null)
+  if (savedUiRef.current === null) savedUiRef.current = readStudioUi(uiId)
+  const savedUi = savedUiRef.current
+  // The AI tool to bring back once the solution text has loaded (see below).
+  const restoreToolRef = useRef(studioOnly ? null : savedUi.aiTool || null)
+
+  // Arriving via "Solutions" (route state) always opens the studio; otherwise
+  // we reopen it only if that's how it was left.
+  const [solnsOpen, setSolnsOpen] = useState(() => studioOnly || !!location.state?.studio || savedUi.solnsOpen === true)
   const [recentItems, setRecentItems] = useState(getRecents)
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [saveOpen, setSaveOpen] = useState(false)
-  const [rawView, setRawView] = useState(true)
+  const [rawView, setRawView] = useState(savedUi.rawView !== false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [savedquery, setSavedquery] = useState(null)
   const [founditems, setFounditems] = useState([])
@@ -416,9 +433,12 @@ const Showfiles = ({
   const [queriesPage, setQueriesPage] = useState(1)
   const [hasMoreQueries, setHasMoreQueries] = useState(false)
   const [isLoadingMoreQueries, setIsLoadingMoreQueries] = useState(false)
-  const [activeTab, setActiveTab] = useState('saved') // 'saved' | 'recent'
+  const [activeTab, setActiveTab] = useState(
+    () => savedUi.activeTab || (getAllCachedSolutions().length ? 'device' : 'saved')
+  ) // 'device' | 'saved' | 'recent'
+  const [deviceItems, setDeviceItems] = useState([])
   const [isRegenerating, setIsRegenerating] = useState(false)
-  const [expanded, setExpanded] = useState(false) // solutions drawer: half-screen vs. full-width
+  const [expanded, setExpanded] = useState(!!savedUi.expanded) // solutions drawer: half-screen vs. full-width
   const [pickedModel, setPickedModel] = useState(null) // model chosen for the NEXT regenerate (null = keep current)
   const [aiTool, setAiTool] = useState(null) // key from AI_TOOLS while a tool is showing, else null
   const [aiMounted, setAiMounted] = useState(false) // once opened, the panel stays mounted (hidden) to keep paid results
@@ -551,6 +571,16 @@ const Showfiles = ({
   const hasError = dataerror?.length > 0 || !extract || extract === 'loading...'
   const hasDownload = /download/gi.test(actualDlink)
 
+  // Everything cached on this device (read locally, never hits the network).
+  // Re-read when a solution finishes loading so it appears straight away.
+  useEffect(() => { setDeviceItems(getAllCachedSolutions()) }, [extract, activeTab, solnsOpen])
+  const filteredDevice = useMemo(() => {
+    const t = searchTerm.trim().toLowerCase()
+    if (!t) return deviceItems
+    return deviceItems.filter((x) => (x.courseName || '').toLowerCase().includes(t))
+  }, [deviceItems, searchTerm])
+  const openDeviceItem = (id) => navigate(`/dashboard/solution/${id}`, { state: { studio: true } })
+
   const filteredRecents = useMemo(() => {
     const t = searchTerm.trim().toLowerCase()
     if (!t) return recentItems
@@ -579,7 +609,30 @@ const Showfiles = ({
   // A different solution (or a regenerate) means any open tool was working on
   // stale material, so reset them rather than quietly mixing sources.
   const aiSourceKey = `${savedquery?.id ?? savedquery?.course ?? 'live'}|${aiSourceText.length}|${aiSourceText.slice(0, 40)}`
-  useEffect(() => { setAiTool(null); setAiMounted(false) }, [aiSourceKey])
+  useEffect(() => {
+    if (isLoading) return // the key is meaningless until the text is in
+    if (restoreToolRef.current) {
+      // First load after a refresh / return: bring back the tool they had open.
+      const t = restoreToolRef.current
+      restoreToolRef.current = null
+      setAiMounted(true)
+      setAiTool(t)
+      return
+    }
+    setAiTool(null); setAiMounted(false)
+  }, [aiSourceKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Remember the studio's state per solution so leaving and coming back (or a
+  // refresh) puts the student exactly where they were. Not while loading — the
+  // values then are placeholders, and would overwrite what we're restoring.
+  useEffect(() => {
+    if (isLoading) return
+    writeStudioUi(uiId, {
+      solnsOpen: studioOnly ? true : solnsOpen,
+      aiTool: savedquery ? null : aiTool,
+      rawView, expanded, activeTab,
+    })
+  }, [uiId, studioOnly, isLoading, solnsOpen, aiTool, savedquery, rawView, expanded, activeTab])
 
   const toggleAiTool = (key) => {
     setAiMounted(true)
@@ -617,10 +670,11 @@ const Showfiles = ({
       <style>{STYLES}</style>
 
       <div className="sf-root">
-        {/* ── PDF pane ── */}
+        {/* ── PDF pane (absent in studio-only mode: nothing to show a PDF of) ── */}
+        {!studioOnly && (
         <div className="sf-pdf-pane">
           <div className="sf-pdf-topbar">
-            <button className="sf-icon-btn" onClick={() => setshowpdf(false)} title="Close">
+            <button className="sf-icon-btn" onClick={() => setshowpdf(false)} title="Back to dashboard">
               <i className="fa fa-times" />
             </button>
             <img src={mainlogo} className="sf-logo" alt="logo" />
@@ -667,18 +721,25 @@ const Showfiles = ({
             />
           </div>
         </div>
+        )}
 
         {/* ── Solutions drawer ── */}
         {solnsOpen && (
-          <div className={`sf-drawer ${expanded ? 'sf-drawer--expanded' : ''}`}>
+          <div className={`sf-drawer ${expanded ? 'sf-drawer--expanded' : ''} ${studioOnly ? 'sf-drawer--studio' : ''}`}>
             {/* Drawer topbar */}
             <div className="sf-drawer__topbar">
-              <button
-                className="sf-icon-btn"
-                onClick={() => { setSolnsOpen(false); setSavedquery(null); setExpanded(false) }}
-                title="Close solutions"
-              >
-                <CloseOutlined />
+              {!studioOnly && (
+                <button
+                  className="sf-icon-btn"
+                  onClick={() => { setSolnsOpen(false); setSavedquery(null); setExpanded(false) }}
+                  title="Close solutions"
+                >
+                  <CloseOutlined />
+                </button>
+              )}
+              {/* Always-visible way out (on phones the drawer covers the PDF bar). */}
+              <button className="sf-icon-btn" onClick={() => setshowpdf(false)} title="Back to dashboard" aria-label="Back to dashboard">
+                <i className="fa fa-home" />
               </button>
               <span className="sf-drawer__title">
                 {savedquery ? (
@@ -712,7 +773,7 @@ const Showfiles = ({
             </div>
 
             {/* Status banner */}
-            {!isLoading && (
+            {!isLoading && !studioOnly && (
               <div className={`sf-banner ${hasError ? 'sf-banner--error' : 'sf-banner--success'}`}>
                 {hasError ? 'Extraction failed' : 'Extraction successful'}
               </div>
@@ -734,8 +795,8 @@ const Showfiles = ({
                     <input
                       type="search"
                       className="sf-search"
-                      placeholder={activeTab === 'recent' ? 'Filter recents…' : 'Search saved queries…'}
-                      aria-label={activeTab === 'recent' ? 'Filter recent solutions' : 'Search saved queries'}
+                      placeholder={activeTab === 'saved' ? 'Search saved queries…' : activeTab === 'recent' ? 'Filter recents…' : 'Filter your solutions…'}
+                      aria-label={activeTab === 'saved' ? 'Search saved queries' : activeTab === 'recent' ? 'Filter recent solutions' : 'Filter solutions on this device'}
                       value={searchTerm}
                       onChange={handleSearchChange}
                     />
@@ -744,6 +805,12 @@ const Showfiles = ({
 
                   {/* Tabs */}
                   <div className="sf-tabs">
+                    <button
+                      className={`sf-tab ${activeTab === 'device' ? 'sf-tab--active' : ''}`}
+                      onClick={() => switchTab('device')}
+                    >
+                      On device
+                    </button>
                     <button
                       className={`sf-tab ${activeTab === 'saved' ? 'sf-tab--active' : ''}`}
                       onClick={() => switchTab('saved')}
@@ -760,7 +827,31 @@ const Showfiles = ({
 
                   {/* List */}
                   <div className="sf-list">
-                    {activeTab === 'saved' ? (
+                    {activeTab === 'device' ? (
+                      filteredDevice.length > 0 ? (
+                        filteredDevice.map((x) => (
+                          <div
+                            className={`sf-list-item ${x.namedfile === fileId && !savedquery ? 'sf-list-item--active' : ''}`}
+                            onClick={() => { setSavedquery(null); openDeviceItem(x.namedfile) }}
+                            key={'d' + x.namedfile}
+                          >
+                            <span className="sf-list-item__initial">{(x.courseName || '?')[0].toUpperCase()}</span>
+                            <div className="sf-list-item__info">
+                              <span className="sf-list-item__label">{x.courseName || 'Untitled paper'}</span>
+                              <span className="sf-list-item__meta">
+                                {x.extract ? 'Solved' : 'Not solved'}
+                                {x.savedAt ? ` · ${new Date(x.savedAt).toLocaleDateString()}` : ''}
+                              </span>
+                            </div>
+                            <i className="fa fa-chevron-right sf-list-item__arrow" />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="sf-list-empty">
+                          {searchTerm.trim() ? `Nothing on this device matches "${searchTerm.trim()}"` : 'Solutions you open are kept here, so you can come back to them anytime.'}
+                        </div>
+                      )
+                    ) : activeTab === 'saved' ? (
                       loadingQueries || isSearching ? (
                         [1,2,3].map(i => (
                           <div className="sf-list-item" key={i}>
@@ -827,7 +918,8 @@ const Showfiles = ({
                 </div>
               </div>
 
-              {/* Content area */}
+              {/* Content area — highlightable: the solution text and every AI tool inside */}
+              <HighlightProvider>
               <div className="sf-content">
                 {/* Content toolbar */}
                 <div className="sf-content__toolbar">
@@ -861,14 +953,14 @@ const Showfiles = ({
                       <button
                         className="sf-pill-btn sf-pill-btn--active"
                         onClick={() => { setSavedquery(null); setRawView(true) }}
-                        title="Back to current result"
+                        title={studioOnly ? 'Close this item' : 'Back to current result'}
                       >
-                        Live result
+                        {studioOnly ? 'Close' : 'Live result'}
                       </button>
                     )}
                     {/* Regenerate: shown for the live (not saved/recent) result whether it
                         succeeded or failed. Red-tinted on failure, neutral on success. */}
-                    {!isLoading && !savedquery && (
+                    {!isLoading && !savedquery && !studioOnly && (
                       <button
                         className={`sf-pill-btn sf-pill-btn--regenerate ${hasError ? '' : 'sf-pill-btn--regenerate-ok'}`}
                         onClick={handleRegenerate}
@@ -898,7 +990,7 @@ const Showfiles = ({
                 </div>
 
                 {/* AI tools — the Learning Hub's generators, working on this solution */}
-                {!isLoading && (
+                {!isLoading && (!studioOnly || savedquery) && (
                   <div className="sf-aistrip" role="toolbar" aria-label="AI study tools">
                     <span className="sf-aistrip__label"><SparkIcon size={12} /> AI tools</span>
                     <div className="sf-aistrip__scroll">
@@ -920,7 +1012,7 @@ const Showfiles = ({
                   </div>
                 )}
 
-                {aiMounted && !isLoading && (
+                {aiMounted && !isLoading && (!studioOnly || savedquery) && (
                   <SolutionAIPanel
                     activeTool={aiTool}
                     onSelectTool={selectAiTool}
@@ -938,14 +1030,28 @@ const Showfiles = ({
                         <Skeleton key={i} width={`${w}%`} height={13} style={{ marginBottom: 10 }} />
                       ))}
                     </div>
+                  ) : studioOnly && !savedquery ? (
+                    <div className="sf-studio-empty">
+                      <img src={racoon_learn} alt="" />
+                      <h3>Your AI studio</h3>
+                      <p>
+                        Open a solution from <strong>On device</strong>, <strong>Saved</strong> or <strong>Recent</strong> on the left,
+                        or find a past paper to generate a new one. Quizzes, games, chat and your highlights all live here.
+                      </p>
+                      <button className="sf-pill-btn sf-pill-btn--accent" onClick={() => setshowpdf(false)}>
+                        Find a past paper
+                      </button>
+                    </div>
                   ) : (
-                    <div
+                    <HlHtml
                       className="sf-prose"
-                      dangerouslySetInnerHTML={{ __html: renderedContent() }}
+                      k={hlKeys.text(rawView ? 'solved' : 'raw', shownSolution || extract || '')}
+                      html={renderedContent()}
                     />
                   )}
                 </div>
               </div>
+              </HighlightProvider>
             </div>
           </div>
         )}
@@ -1340,6 +1446,13 @@ const STYLES = `
     gap: 6px;
   }
   .sf-list-empty--error { color: #f87171; }
+
+  /* Studio-only: no PDF pane, so the drawer is the page */
+  .sf-drawer--studio { flex: 1; width: auto; max-width: none; border-left: none; }
+  .sf-studio-empty { max-width: 420px; margin: 8vh auto 0; text-align: center; color: #9aa0b4; }
+  .sf-studio-empty img { width: 120px; border-radius: 16px; opacity: .9; }
+  .sf-studio-empty h3 { color: #e8e8f0; margin: 14px 0 6px; font-size: 18px; }
+  .sf-studio-empty p { font-size: 13px; line-height: 1.7; margin: 0 0 16px; }
 
   .sf-load-more {
     display: block;

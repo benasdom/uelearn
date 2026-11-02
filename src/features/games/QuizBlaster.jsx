@@ -4,7 +4,7 @@ import { QuestionCard, Feedback, Stat, useAnswerKeys, REVEALED } from './gameKit
 const MAX_LIVES = 3
 
 // Classic run: 3 lives, streaks raise the points per correct answer.
-export default function QuizBlaster({ questions, active, sfx, onComplete }) {
+export default function QuizBlaster({ questions, active, sfx, onComplete, onAnswer }) {
   const [i, setI] = useState(0)
   const [lives, setLives] = useState(MAX_LIVES)
   const [score, setScore] = useState(0)
@@ -22,6 +22,7 @@ export default function QuizBlaster({ questions, active, sfx, onComplete }) {
   const pick = (idx) => {
     if (answered) return
     setPicked(idx)
+    onAnswer?.(q, idx === q.correct)
     if (idx === q.correct) {
       const pts = 100 + Math.min(streak, 10) * 20
       setGained(pts)
@@ -42,6 +43,7 @@ export default function QuizBlaster({ questions, active, sfx, onComplete }) {
   const reveal = () => {
     if (answered) return
     setPicked(REVEALED)
+    onAnswer?.(q, false, 'revealed')
     setGained(0)
     setStreak(0)
     missedRef.current.push(q)

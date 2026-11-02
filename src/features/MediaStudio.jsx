@@ -17,7 +17,6 @@ const TABS = [
 
 export default function MediaStudio({ onNavigate, initialPrompt = '', initialTab = 'image', compact = false }) {
   const [tab, setTab] = useState(initialTab)
-
   return (
     <div className="hub-page">
       {!compact && (

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { HText, OptionButton } from '../highlight/Highlighter'
+import { hlKeys } from '../highlight/highlightStore'
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -121,7 +123,7 @@ export function QuestionCard({ question, picked, onPick, onReveal }) {
   const revealed = picked !== null
   return (
     <>
-      <p className="gm-question">{question.q}</p>
+      <HText as="p" className="gm-question" k={hlKeys.question(question)} text={question.q} />
       <div className="gm-options" role="group" aria-label="Answer options">
         {question.options.map((opt, i) => {
           let cls = 'gm-option'
@@ -131,10 +133,10 @@ export function QuestionCard({ question, picked, onPick, onReveal }) {
             else cls += ' is-dim'
           }
           return (
-            <button key={i} type="button" className={cls} disabled={revealed} onClick={() => onPick(i)}>
+            <OptionButton key={i} className={cls} disabled={revealed} onActivate={() => onPick(i)}>
               <span className="gm-option__key" aria-hidden="true">{LETTERS[i]}</span>
-              <span className="gm-option__text">{opt}</span>
-            </button>
+              <HText className="gm-option__text" k={hlKeys.option(question, opt)} text={opt} />
+            </OptionButton>
           )
         })}
       </div>
@@ -159,10 +161,12 @@ export function Feedback({ question, picked, gained, timedOut }) {
       </div>
       {!ok && (
         <div className="gm-feedback__answer">
-          Answer: <strong>{question.options[question.correct]}</strong>
+          Answer: <HText as="strong" k={hlKeys.answer(question)} text={question.options[question.correct]} />
         </div>
       )}
-      {question.explanation && <div className="gm-feedback__why">{question.explanation}</div>}
+      {question.explanation && (
+        <HText as="div" className="gm-feedback__why" k={hlKeys.explanation(question)} text={question.explanation} />
+      )}
     </div>
   )
 }

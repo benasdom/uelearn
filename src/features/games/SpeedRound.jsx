@@ -5,7 +5,7 @@ const SECONDS = 15
 const START_TENTHS = SECONDS * 10
 
 // Beat the clock on every question — faster answers earn a bigger bonus.
-export default function SpeedRound({ questions, active, sfx, onComplete }) {
+export default function SpeedRound({ questions, active, sfx, onComplete, onAnswer }) {
   const [i, setI] = useState(0)
   const [tenths, setTenths] = useState(START_TENTHS)
   const [score, setScore] = useState(0)
@@ -33,6 +33,8 @@ export default function SpeedRound({ questions, active, sfx, onComplete }) {
   const resolve = (idx) => {
     if (answered) return
     setPicked(idx)
+    // idx is TIMED_OUT (-1) or REVEALED (-2) for a timeout / reveal, so both count as a miss.
+    onAnswer?.(q, idx === q.correct, idx === TIMED_OUT ? 'timeout' : idx === REVEALED ? 'revealed' : undefined)
     if (idx === q.correct) {
       const pts = 100 + Math.floor(tenths / 10) * 10
       setGained(pts)

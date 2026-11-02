@@ -5,7 +5,7 @@ import { loadState, saveState } from './localStore'
 const KEY = 'activity'
 
 function read() {
-  return loadState(KEY, { cardsReviewed: 0, mockTestsTaken: 0, generations: 0 })
+  return loadState(KEY, { cardsReviewed: 0, mockTestsTaken: 0, generations: 0, researchActions: 0 })
 }
 
 export function getActivity() {
@@ -32,6 +32,15 @@ export function bumpMockTestsTaken(by = 1) {
 export function bumpGenerations(by = 1) {
   const state = read()
   const updated = { ...state, generations: (state.generations || 0) + by }
+  saveState(KEY, updated)
+  return updated
+}
+
+// Bumped by the Research Lab (papers analysed, claims evidenced, feedback resolved,
+// analyses run, ...) — feeds XP and the research achievements.
+export function bumpResearch(by = 1) {
+  const state = read()
+  const updated = { ...state, researchActions: (state.researchActions || 0) + by }
   saveState(KEY, updated)
   return updated
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Sparkles, Clapperboard, Layers, Timer, Bookmark, CalendarDays,
-  MessagesSquare, Flame, X,
+  MessagesSquare, Flame, X, FlaskConical,
 } from 'lucide-react'
 import { getFromLocalStorage } from '../menu/fromlocal'
 import { getActivity } from '../lib/activity'
@@ -10,6 +10,7 @@ import Flashcards from './Flashcards'
 import MockTest from './MockTest'
 import Library from './Library'
 import Planner from './Planner'
+import ResearchStudio from './ResearchStudio'
 import Discussions from './Discussions'
 import ThemeToggle from './ThemeToggle'
 import GeneratorStudio from './GeneratorStudio'
@@ -23,6 +24,7 @@ const TILES = [
   { key: 'flashcards',   Icon: Layers,           label: 'Flashcards',       desc: 'Spaced-repetition decks' },
   { key: 'mocktest',     Icon: Timer,            label: 'Mock Tests',       desc: 'Timed practice runs' },
   { key: 'library',      Icon: Bookmark,         label: 'Library',          desc: 'Saved notes & bookmarks' },
+  { key: 'research',     Icon: FlaskConical,     label: 'Research Lab',     desc: 'Literature, evidence, stats & thesis' },
   { key: 'planner',      Icon: CalendarDays,     label: 'Planner',          desc: 'Plan your study time' },
   { key: 'discussions',  Icon: MessagesSquare,   label: 'Discussions',      desc: 'Talk it through' },
 ]
@@ -77,7 +79,7 @@ const XpRing = ({ pct }) => {
 export default function Hub({ onNavigate }) {
   const [view, setView] = useState(null)
   const [streakInfo, setStreakInfo] = useState({ highestStreakScore: 0 })
-  const [activity, setActivity] = useState({ cardsReviewed: 0, mockTestsTaken: 0, generations: 0 })
+  const [activity, setActivity] = useState({ cardsReviewed: 0, mockTestsTaken: 0, generations: 0, researchActions: 0 })
   const [genSeed, setGenSeed] = useState(null) // { text, label } prefill when jumping in from a note
 
   useEffect(() => {
@@ -105,6 +107,7 @@ export default function Hub({ onNavigate }) {
   if (view === 'flashcards') return <BackWrap onBack={() => setView(null)}><Flashcards /></BackWrap>
   if (view === 'mocktest') return <BackWrap onBack={() => setView(null)}><MockTest /></BackWrap>
   if (view === 'library') return <BackWrap onBack={() => setView(null)}><Library onGenerateFromNote={openGeneratorFromNote} /></BackWrap>
+  if (view === 'research') return <BackWrap onBack={() => setView(null)}><ResearchStudio /></BackWrap>
   if (view === 'planner') return <BackWrap onBack={() => setView(null)}><Planner /></BackWrap>
   if (view === 'discussions') return <BackWrap onBack={() => setView(null)}><Discussions /></BackWrap>
 
