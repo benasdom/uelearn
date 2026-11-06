@@ -1,6 +1,8 @@
 import {useState,useEffect,useMemo,useRef} from 'react';
 import racoonread from '/imgs/racoon_learn.jpg'
 import { LocalApiPath } from './menu/authfetch';
+import { groupModels } from './lib/modelGroups';
+import ModelSectionTitle, { ModelSectionStyles } from './ModelSectionTitle';
 import {
   RobotOutlined, ThunderboltOutlined, WarningOutlined,
   CloseOutlined, ArrowRightOutlined, InboxOutlined,
@@ -80,6 +82,9 @@ setselectModel(false);
         );
     }, [listed, modelSearch]);
 
+    // Text models first, then image, then video (see lib/modelGroups.js).
+    const sections = useMemo(() => groupModels(modelEntries), [modelEntries]);
+
     const selectedName = useMemo(() => {
         const match = Object.entries(listed).find(([, val]) => val === selectedVal);
         return match?.[0] ?? "";
@@ -151,26 +156,36 @@ return (
             <div className="mmodel-picker" ref={pickerRef}>
                 {dropdownOpen && (
                     <div className="mmodel-dropdown" role="listbox">
-                        {modelEntries.length > 0 ? (
-                            modelEntries.map(([name, value]) => {
-                                const active = value === selectedVal;
-                                return (
-                                    <button
-                                        type="button"
-                                        key={name}
-                                        role="option"
-                                        aria-selected={active}
-                                        className={`mmodel-item ${active ? 'mmodel-item--active' : ''}`}
-                                        // onMouseDown (not onClick) fires before the input's onBlur,
-                                        // so the selection registers before the dropdown would close.
-                                        onMouseDown={(e) => { e.preventDefault(); handleSelect(name, value); }}
-                                    >
-                                        <span className="mmodel-item__icon"><RobotOutlined /></span>
-                                        <span className="mmodel-item__name">{name}</span>
-                                        {active && <CheckCircleFilled className="mmodel-item__check" />}
-                                    </button>
-                                );
-                            })
+                        {sections.length > 0 ? (
+                            sections.map((section) => (
+                                <div className="msec" key={section.kind} data-kind={section.kind}>
+                                    <ModelSectionTitle
+                                        kind={section.kind}
+                                        title={section.title}
+                                        note={section.note}
+                                        count={section.items.length}
+                                    />
+                                    {section.items.map(([name, value]) => {
+                                        const active = value === selectedVal;
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={name}
+                                                role="option"
+                                                aria-selected={active}
+                                                className={`mmodel-item mmodel-item--${section.kind} ${active ? 'mmodel-item--active' : ''}`}
+                                                // onMouseDown (not onClick) fires before the input's onBlur,
+                                                // so the selection registers before the dropdown would close.
+                                                onMouseDown={(e) => { e.preventDefault(); handleSelect(name, value); }}
+                                            >
+                                                <span className="mmodel-item__icon"><RobotOutlined /></span>
+                                                <span className="mmodel-item__name">{name}</span>
+                                                {active && <CheckCircleFilled className="mmodel-item__check" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ))
                         ) : (
                             <div className="mmodel-empty">No models match “{modelSearch}”</div>
                         )}
@@ -212,6 +227,7 @@ return (
             
             continue<span className="prem4"></span></button>
 
+        <ModelSectionStyles />
         <style>{`
             .mcredits {
                 position: absolute;
@@ -287,7 +303,7 @@ return (
                 left: 0;
                 right: 0;
                 bottom: calc(100% + 6px);
-                max-height: 300px;
+                max-height: 360px;
                 overflow-y: auto;
                 -webkit-overflow-scrolling: touch;
                 display: flex;
@@ -349,6 +365,12 @@ return (
             .mmodel-item--active .mmodel-item__icon { background: rgba(99,102,241,.25); color: #a5b4fc; }
             .mmodel-item__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             .mmodel-item__check { color: #818cf8; font-size: 13px; flex-shrink: 0; }
+
+            .msec { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+            .mmodel-item--text { font-size: 14px; min-height: 40px; color: #e6e6f0; }
+            .mmodel-item--text .mmodel-item__icon { background: rgba(99,102,241,.18); color: #a5b4fc; }
+            .mmodel-item--image, .mmodel-item--video { font-size: 12px; opacity: .82; }
+            .mmodel-item--image:hover, .mmodel-item--video:hover { opacity: 1; }
 
             .mmodel-empty {
                 padding: 10px 8px;

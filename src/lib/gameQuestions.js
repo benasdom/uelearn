@@ -19,7 +19,9 @@ export const MIN_QUESTIONS = 3
 
 const SETS_KEY = 'mock-test-sets' // same key MockTest + AIGenerator use
 const CACHE_KEY = 'game-question-cache'
-const CACHE_LIMIT = 8
+// One pool per solution a student plays, so give it room: 8 got evicted after a
+// single revision session across a few courses.
+const CACHE_LIMIT = 30
 
 // Identical wording to the Quiz Generator's "quiz" mode, which the backend is
 // known to respond to. The backend still picks the mix of question types, so
@@ -212,7 +214,7 @@ export function questionsToTranscript(questions) {
 
 // ─── Per-text cache so reopening doesn't pay for the same questions twice ─────
 
-function hashText(text) {
+export function hashText(text) {
   let h = 5381
   for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0
   return `${text.length}:${(h >>> 0).toString(36)}`
@@ -237,16 +239,24 @@ function cacheQuestions(text, questions) {
 
 /**
  * Generates MCQs from text via the same backend call the Quiz Generator uses.
- * @returns {Promise<{ questions: object[], remainingCredits?: number, partialErrors: string[] }>}
+ *
+ * With a `signal`, the caller can cancel: the in-flight request is aborted and
+ * no further chunks are sent. Anything that had already come back is KEPT
+ * (those credits are spent) and returned with `cancelled: true`; if nothing had
+ * come back yet the result is simply empty rather than an error.
+ *
+ * @returns {Promise<{ questions: object[], remainingCredits?: number, partialErrors: string[], cancelled: boolean }>}
  */
-export async function generateGameQuestions(text, { onProgress } = {}) {
-  const { exercises, remainingCredits, partialErrors } = await generateExercisesFromText(text, {
+export async function generateGameQuestions(text, { onProgress, signal } = {}) {
+  const { exercises, remainingCredits, partialErrors, cancelled } = await generateExercisesFromText(text, {
     onProgress,
+    signal,
     instruction: GAME_INSTRUCTION,
   })
 
   const questions = buildGameQuestions(exercises)
   if (questions.length === 0) {
+    if (cancelled) return { questions: [], remainingCredits, partialErrors: partialErrors || [], cancelled: true }
     throw new Error(
       exercises.length > 0
         ? `The AI returned ${exercises.length} item${exercises.length !== 1 ? 's' : ''}, but none could be turned into game questions. Try again or use a longer passage.`
@@ -256,5 +266,60 @@ export async function generateGameQuestions(text, { onProgress } = {}) {
 
   cacheQuestions(text, questions)
   bumpGenerations()
-  return { questions, remainingCredits, partialErrors: partialErrors || [] }
+  return { questions, remainingCredits, partialErrors: partialErrors || [], cancelled: !!cancelled }
+}
+
+// ─── In-flight generations ────────────────────────────────────────────────────
+// A generation outlives the screen that started it. If a student starts one,
+// switches to another tool or leaves the page, and comes back, they should see
+// it still running (with Cancel) — not an idle Generate button that would pay a
+// second time for the same questions. So running generations are tracked here,
+// per source text, rather than in component state.
+
+const inflight = new Map() // hashText(text) → handle
+
+/** The running generation for this text, if any. */
+export function activeGeneration(text) {
+  const t = clean(text)
+  return t ? inflight.get(hashText(t)) || null : null
+}
+
+/**
+ * Starts (or joins) the generation for `text`.
+ * @returns {{ promise: Promise<object>, cancel: () => void, subscribe: (fn: (p:{done:number,total:number}) => void) => () => void, progress: {done:number,total:number} }}
+ */
+export function beginGeneration(text) {
+  const t = clean(text)
+  const key = hashText(t)
+  const existing = inflight.get(key)
+  if (existing) return existing // never pay twice for the same text
+
+  const controller = new AbortController()
+  const listeners = new Set()
+  const handle = {
+    progress: { done: 0, total: 1 },
+    promise: null,
+    cancel: () => controller.abort(),
+    subscribe(fn) {
+      listeners.add(fn)
+      fn(handle.progress)
+      return () => listeners.delete(fn)
+    },
+  }
+
+  handle.promise = generateGameQuestions(t, {
+    signal: controller.signal,
+    onProgress: (done, total) => {
+      handle.progress = { done, total }
+      listeners.forEach((fn) => fn(handle.progress))
+    },
+  }).finally(() => {
+    if (inflight.get(key) === handle) inflight.delete(key)
+  })
+  // Nobody may be listening any more (the student left); don't surface that as
+  // an unhandled rejection. Callers that await handle.promise still see errors.
+  handle.promise.catch(() => {})
+
+  inflight.set(key, handle)
+  return handle
 }

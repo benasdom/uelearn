@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { shuffle } from '../../lib/gameQuestions'
 import { Stat, useGameKeys } from './gameKit'
+import { HText } from '../highlight/Highlighter'
+import { hlKeys } from '../highlight/highlightStore'
 
 const START_TENTHS = 450 // 45s
 const PENALTY_TENTHS = 50 // a wrong answer costs 5s
 
 // A statement pairs a question with ONE option — either the right answer or a
 // distractor. Judge it true or false before the clock runs out.
-export default function TrueFalseBlitz({ questions, active, sfx, onComplete }) {
+export default function TrueFalseBlitz({ questions, active, sfx, onComplete, onAnswer }) {
   const queueRef = useRef([])
   const makeCard = () => {
     if (queueRef.current.length === 0) queueRef.current = shuffle(questions)
@@ -62,6 +64,7 @@ export default function TrueFalseBlitz({ questions, active, sfx, onComplete }) {
     if (lockRef.current || finishedRef.current || tenths <= 0) return
     lockRef.current = true
     const ok = saysTrue === card.isTrue
+    onAnswer?.(card.q, ok)
     setAnswered((n) => n + 1)
     if (ok) {
       setScore((s) => s + 100 + Math.min(streak, 10) * 10)
@@ -105,16 +108,16 @@ export default function TrueFalseBlitz({ questions, active, sfx, onComplete }) {
       </div>
 
       <div className={`hub-card gm-play gm-tf ${flash ? `is-${flash}` : ''}`}>
-        <p className="gm-tf__q">{card.q.q}</p>
+        <HText as="p" className="gm-tf__q" k={hlKeys.question(card.q)} text={card.q.q} />
         <div className="gm-tf__claim">
           <span className="gm-tf__label">Is this the answer?</span>
-          {card.shown}
+          <HText k={hlKeys.option(card.q, card.shown)} text={card.shown} />
         </div>
         {flash === 'bad' && (
           <div className="gm-feedback is-wrong" role="status">
             <div className="gm-feedback__head">❌ {card.isTrue ? 'That was the right answer' : 'That was a wrong answer'}</div>
-            {!card.isTrue && <div className="gm-feedback__answer">Correct answer: <strong>{card.q.options[card.q.correct]}</strong></div>}
-            {card.q.explanation && <div className="gm-feedback__why">{card.q.explanation}</div>}
+            {!card.isTrue && <div className="gm-feedback__answer">Correct answer: <HText as="strong" k={hlKeys.answer(card.q)} text={card.q.options[card.q.correct]} /></div>}
+            {card.q.explanation && <HText as="div" className="gm-feedback__why" k={hlKeys.explanation(card.q)} text={card.q.explanation} />}
           </div>
         )}
         <div className="gm-tf__btns">

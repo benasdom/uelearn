@@ -83,6 +83,21 @@ export const ACHIEVEMENTS = [
     metric: ({ generations }) => generations,
     goal: 25,
   },
+  {
+    key: 'res-start', name: 'Principal Investigator', tier: 'bronze',
+    description: 'Start your first Research Lab project',
+    metric: ({ researchActions }) => researchActions || 0, goal: 5,
+  },
+  {
+    key: 'res-50', name: 'Evidence Hunter', tier: 'silver',
+    description: 'Log 50 research actions (papers, claims, analyses, feedback)',
+    metric: ({ researchActions }) => researchActions || 0, goal: 50,
+  },
+  {
+    key: 'res-300', name: 'Thesis Machine', tier: 'gold',
+    description: 'Log 300 research actions',
+    metric: ({ researchActions }) => researchActions || 0, goal: 300,
+  },
 ]
 
 /**

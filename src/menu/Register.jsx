@@ -15,11 +15,14 @@ import guylogs      from "../../public/imgs/guylogs.png";
 import racoon_learn from "../../public/imgs/racoon_learn.jpg";
 import logo         from "../../public/imgs/titled.jpg";
 import { GoogleBtn } from "./Googlebtn";
+import LoadComponent from "../Loadcomponent";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const PANEL_IMGS = [jess, jude, guylogs, brown];
 // Stable random pick per mount — stored outside component to avoid re-rolling on re-render
+// .register is z-index 1000000 — the loader must out-rank it.
+const LOGIN_LOADER_Z = 1000010;
 const PANEL_IMG = PANEL_IMGS[Math.floor(Math.random() * PANEL_IMGS.length)];
 
 const VIEW = {
@@ -87,6 +90,27 @@ export default function Register() {
   const [googleLoading, setgoogleLoading] = useState(false);
 
   const [otpLoading,  setotpLoading]  = useState(false);
+
+  /* ── loader over the login page ──
+     The login screen is a fixed layer at z-index 1,000,000, so the loader has
+     to sit above that. It covers the page while the artwork decodes (so the
+     form never pops in half-painted) and again during any auth request. */
+  const [pageReady, setpageReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const decode = (src) => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = img.onerror = () => resolve();
+      img.src = src;
+      img.decode?.().then(resolve, resolve);
+    });
+    const failsafe = setTimeout(() => alive && setpageReady(true), 3000);
+    Promise.all([PANEL_IMG, racoon_learn, logo].map(decode)).then(() => {
+      if (alive) { clearTimeout(failsafe); setpageReady(true); }
+    });
+    return () => { alive = false; clearTimeout(failsafe); };
+  }, []);
+  const showLoader = !pageReady || loading || googleLoading || otpLoading;
   const [counter,     setcounter]     = useState(0);
   const [temptoken,   settemptoken]   = useState("");
   const [skipotp,     setskipotp]     = useState(false);
@@ -916,6 +940,11 @@ export default function Register() {
           <img className="tinylogo" style={{ zIndex:2 }} src={logo} alt=""/>
         </div>
       </div>
+      <LoadComponent
+        opacity={showLoader ? 1 : 0}
+        indexed={showLoader ? LOGIN_LOADER_Z : -100}
+        mainlogo={logo}
+      />
     </div>
   );
 }

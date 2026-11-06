@@ -1,5 +1,6 @@
-import { Zap, Timer, Puzzle, ToggleRight, Rocket } from 'lucide-react'
+import { Zap, Timer, Puzzle, ToggleRight, Rocket, Crosshair } from 'lucide-react'
 import GalacticDefense from './GalacticDefense'
+import ArcadeOverdrive from './ArcadeOverdrive'
 import QuizBlaster from './QuizBlaster'
 import SpeedRound from './SpeedRound'
 import MatchPairs from './MatchPairs'
@@ -18,6 +19,16 @@ export const GAMES = [
     minQuestions: 3,
     roundSize: 10,
     Component: GalacticDefense,
+  },
+  {
+    key: 'overdrive',
+    name: 'Arcade Overdrive',
+    Icon: Crosshair,
+    blurb: 'Lock on and fire at the right answer. Sectors, boss targets, checkpoints, lifelines and pinned notes.',
+    tags: ['Sectors', 'Boss waves', 'Lifelines'],
+    minQuestions: 3,
+    roundSize: 0, // every question; the game splits them into sectors of 10
+    Component: ArcadeOverdrive,
   },
   {
     key: 'blaster',

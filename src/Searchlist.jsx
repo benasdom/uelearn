@@ -7,16 +7,26 @@ import {
   MoneyCollectOutlined, AppstoreOutlined, GoldFilled, DollarOutlined,
   SolutionOutlined, ScheduleOutlined, LogoutOutlined, TeamOutlined,MenuFoldOutlined,MenuUnfoldOutlined,
   TrophyOutlined, CloseCircleFilled, DisconnectOutlined,
-  SoundOutlined, AimOutlined, SearchOutlined, EyeOutlined, LoadingOutlined,
+  SoundOutlined, AimOutlined, SearchOutlined, EyeOutlined,
 } from '@ant-design/icons'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useParams, useNavigate } from 'react-router-dom'
 import mainlogo from '/imgs/titled.png'
 import racoon from '/imgs/racoon_job.jpg'
 import Overview from './menu/Overview'
 import LoadComponent from './Loadcomponent'
+import { ResultSkeletons } from './Skeletons'
+import { clearSearchCache } from './lib/searchCache'
 import ModelComponent from './ModelComponent'
 import { domain, fetchWithAuth, logout, LocalApiPath } from './menu/authfetch'
 import { useAppContext } from './Appcontext'
+import {
+  cacheSolution, getCachedSolution, getAllCachedSolutions, getLastSolution,
+  getLastStudioFile, setLastStudioFile,
+} from './lib/solutionCache'
+import { trackPending, getPending } from './lib/pendingRequests'
+
+// Kept for compatibility: other screens import these from here.
+export { getAllCachedSolutions, getLastSolution }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -29,58 +39,7 @@ function readStoredUser() {
   }
 }
 
-// ─── solution cache (localStorage) ─────────────────────────────────────────
-// Lets /dashboard/solution/:filename survive a refresh without re-hitting
-// the API, and lets App.jsx offer a "last solution" shortcut from the home
-// page. Keyed by the same `namedfile` the API calls use.
-
-const SOLUTION_CACHE_PREFIX = "solutionCache:";
-
-function cacheSolution(namedfile, data) {
-  try {
-    localStorage.setItem(
-      SOLUTION_CACHE_PREFIX + namedfile,
-      JSON.stringify({ ...data, savedAt: Date.now() })
-    );
-  } catch {
-    // quota exceeded — fail silently, it's just a cache
-  }
-}
-
-function getCachedSolution(namedfile) {
-  try {
-    const raw = localStorage.getItem(SOLUTION_CACHE_PREFIX + namedfile);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Every solution cached locally, newest first. Reading this list — and
- *  opening any item in it — never touches the network, so it stays usable
- *  even while a different solution is mid-fetch elsewhere in the app. */
-export function getAllCachedSolutions() {
-  try {
-    const all = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key || !key.startsWith(SOLUTION_CACHE_PREFIX)) continue;
-      const data = JSON.parse(localStorage.getItem(key));
-      if (!data) continue;
-      const namedfile = key.slice(SOLUTION_CACHE_PREFIX.length);
-      all.push({ ...data, namedfile });
-    }
-    return all.sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0));
-  } catch {
-    return [];
-  }
-}
-
-/** Most recently viewed solution across all cached files, or null. */
-export function getLastSolution() {
-  const all = getAllCachedSolutions();
-  return all.length ? all[0] : null;
-}
+// The solution cache now lives in ./lib/solutionCache (shared with Showfiles).
 
 /**
  * The AI response contains HTML when valid (includes <h3> tags).
@@ -160,6 +119,61 @@ const Toaster = ({ errorMessage, setfetchError }) => {
   );
 };
 
+// ─── solution request (survives leaving the page) ───────────────────────────
+// The request is registered by file id OUTSIDE the component: if the student
+// wanders off mid-fetch and returns, they re-attach to the same request
+// instead of starting (and paying for) a second one, and the finished
+// solution is cached even if nobody was looking when it arrived.
+function requestSolution({ fileId, modelVal, premiumstatus, courseName, previewLink, directDownload, onCredits }) {
+  const key = `solution:${fileId}`
+  const existing = getPending(key)
+  if (existing) return existing
+  return trackPending(key, (async () => {
+    const solutionResponse = await fetchWithAuth(`${domain}/api/v1/request/solutions/by-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileId,
+        selectedVal: modelVal,
+        premiumstatus: premiumstatus ?? "premiumstatus",
+        courseName,
+      }),
+    })
+    if (!solutionResponse) throw new Error("No response from solutions API")
+    if (solutionResponse?.error) {
+      throw new Error(solutionResponse.error.details ?? solutionResponse.error.message ?? "Failed to fetch solution")
+    }
+    // fetchWithAuth already unwraps data.data, so pull nested fields directly
+    const solutionData = solutionResponse.api_response?.data ?? solutionResponse
+    const remainingCredits = solutionResponse.remaining_credits ?? 0
+    onCredits?.(remainingCredits)
+
+    let cleanedExtract = ""
+    let extractError = ""
+    if (solutionData.error) {
+      extractError = solutionData.error
+    } else {
+      const cleaned = parseAIResponse(solutionData.extractedText ?? "")
+      if (cleaned) cleanedExtract = cleaned
+      else extractError = solutionData.extractedText ?? "Unexpected response format."
+    }
+    const result = {
+      extract: cleanedExtract,
+      dataerror: extractError,
+      raw: solutionData.error ? "" : (solutionData.raw ?? ""),
+      actualDlink: solutionData.directDownload ?? directDownload,
+    }
+    cacheSolution(fileId, {
+      courseName,
+      ...result,
+      raw: solutionData.raw ?? "",
+      pdflink: previewLink,
+      selectedVal: modelVal,
+    })
+    return result
+  })())
+}
+
 // ─── SearchList ───────────────────────────────────────────────────────────────
 
 const SearchList = () => {
@@ -194,6 +208,11 @@ const SearchList = () => {
   const [selectlink,   setselectlink]   = useState("")
   // showpdf is now derived from the URL rather than owned locally.
   const showpdf = !!filename
+  // "Solutions" (/dashboard/solutions) is the AI studio itself, not a list:
+  // straight back into the last solution if there is one, otherwise the studio
+  // with its On device / Saved / Recent lists.
+  const isStudioHome = view === "solutions" && !filename
+  const studioTarget = isStudioHome ? getLastStudioFile() : null
   const [extract,      setextract]      = useState("loading...")
   const [raw,          setraw]          = useState("")
   const [collapsed,    setCollapsed]    = useState(true);
@@ -251,6 +270,7 @@ const SearchList = () => {
 
   const logoutUser = () => {
     if (confirm("Confirm to Leave")) {
+      clearSearchCache();
       logout();
       location.reload();
     }
@@ -272,14 +292,17 @@ const SearchList = () => {
   // fetch for the same file right after loadSolution's own navigate()
   // changes :filename (that race was overwriting good responses with a
   // stray "Unexpected response format" from the duplicate call).
-  const loadedFilesRef = useRef(new Set());
+  // The solution whose data is currently in state. (Was a "ever loaded" set,
+  // which wrongly skipped restoring a cached solution you'd already visited —
+  // so jumping between solutions showed the previous one's text.)
+  const currentFileRef = useRef(null);
 
   // ── fetch AI solution for a given driveFileId, then navigate to its own
   //    route (/dashboard/solution/:fileId) so a refresh keeps it.
   //    `name` is the course name to remember/cache alongside it; pass null
   //    when restoring (courseName is already set from cache).
   const loadSolution = useCallback(async (fileId, modelVal, name) => {
-    loadedFilesRef.current.add(fileId);
+    currentFileRef.current = fileId;
     const storedUser   = readStoredUser();
     const premiumstatus = storedUser?.pStatus ?? null;
 
@@ -308,91 +331,39 @@ const SearchList = () => {
     navigate(`/dashboard/solution/${fileId}`);
 
     try {
-      // Fetch the AI solution by driveFileId — replaces the old
-      // filename-based /request/solutions call, which can't reliably
-      // resolve a file in the current Drive layout (same-named papers,
-      // scraper-generated filenames that don't match what a user would
-      // type). courseName is passed through so the backend's auto-saved
-      // SolutionModel row is categorized correctly instead of falling back
-      // to "uncategorized".
-      const options = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileId,
-          selectedVal:   modelVal,
-          premiumstatus: premiumstatus ?? "premiumstatus",
-          courseName:    name ?? courseName,
-        }),
-      };
-
-      const solutionResponse = await fetchWithAuth(
-        `${domain}/api/v1/request/solutions/by-id`,
-        options
-      );
-
-      if (!solutionResponse) {
-        throw new Error("No response from solutions API");
-      }
-      if (solutionResponse?.error) {
-        const detail =
-          solutionResponse.error.details ??
-          solutionResponse.error.message ??
-          "Failed to fetch solution";
-        throw new Error(detail);
-      }
-
-      // fetchWithAuth already unwraps data.data, so pull nested fields directly
-      const solutionData     = solutionResponse.api_response?.data ?? solutionResponse;
-      const remainingCredits = solutionResponse.remaining_credits ?? 0;
-
-      setcredits(remainingCredits);
-      writeStoredUser({ credits: remainingCredits });
-
-      if (solutionData.directDownload) {
-        setactualDlink(solutionData.directDownload);
-      }
-
-      let cleanedExtract = "";
-      let extractError = "";
-
-      if (solutionData.error) {
-        extractError = solutionData.error;
-        setdataerror(extractError);
-      } else {
-        if (solutionData.raw) setraw(solutionData.raw);
-
-        const cleaned = parseAIResponse(solutionData.extractedText ?? "");
-        if (cleaned) {
-          cleanedExtract = cleaned;
-          setextract(cleaned);
-        } else {
-          // Server returned something, but it's not valid HTML — surface the raw message
-          extractError = solutionData.extractedText ?? "Unexpected response format.";
-          setdataerror(extractError);
-          setextract("");
-        }
-      }
-
-      // Cache the finished solution so /dashboard/solution/:fileId can
-      // restore it instantly on refresh instead of refetching.
-      cacheSolution(fileId, {
+      const result = await requestSolution({
+        fileId,
+        modelVal,
+        premiumstatus,
         courseName: name ?? courseName,
-        extract: cleanedExtract,
-        dataerror: extractError,
-        raw: solutionData.raw ?? "",
-        pdflink: previewLink,
-        actualDlink: solutionData.directDownload ?? directDownload,
-        selectedVal: modelVal,
+        previewLink,
+        directDownload,
+        // Runs once, by the call that actually made the request, even if the
+        // student has left: the balance is correct wherever they go next.
+        onCredits: (n) => { setcredits(n); writeStoredUser({ credits: n }) },
       });
+
+      // They've moved on to another solution: it's cached for later, so
+      // don't paint it over what they're looking at now.
+      if (currentFileRef.current !== fileId) return;
+
+      if (result.actualDlink) setactualDlink(result.actualDlink);
+      if (result.dataerror) {
+        setdataerror(result.dataerror);
+        setextract("");
+      } else {
+        if (result.raw) setraw(result.raw);
+        setextract(result.extract);
+      }
     } catch (err) {
+      if (currentFileRef.current !== fileId) return;
       const message = err instanceof Error ? err.message : String(err);
       setdataerror("Extraction failed: " + message);
       setfetchError(true);
       seterrorMessage(message);
       setextract(""); // Never show raw error strings in the solution viewer
     } finally {
-      setspin(false);
+      if (currentFileRef.current === fileId) setspin(false);
     }
   }, [navigate, courseName, setcredits, setdataerror, setpdflink, setactualDlink, writeStoredUser]);
 
@@ -413,15 +384,18 @@ const SearchList = () => {
     // Already loading/loaded this file this session (including the case
     // where loadSolution's own navigate() just changed :filename to this
     // value)? Nothing to do — avoids a duplicate parallel fetch.
-    if (loadedFilesRef.current.has(filename)) return;
+    if (currentFileRef.current === filename) return;
+    setLastStudioFile(filename);
 
     const cached = getCachedSolution(filename);
     if (cached) {
-      loadedFilesRef.current.add(filename);
+      currentFileRef.current = filename;
       setcourseName(cached.courseName || "");
       setextract(cached.extract || "");
       setdataerror(cached.dataerror || "");
       setraw(cached.raw || "");
+      setfetchError(false);
+      seterrorMessage("");
       setpdflink(cached.pdflink || "https://notfound.com");
       setactualDlink(cached.actualDlink || "https://notfound.com");
       if (cached.selectedVal) setselectedVal(cached.selectedVal);
@@ -440,10 +414,17 @@ const SearchList = () => {
   // needed here anymore.
   const showEmptyState = find.trim() === "" || payload.length === 0;
 
+  if (isStudioHome && studioTarget) {
+    return <Navigate to={`/dashboard/solution/${studioTarget}`} replace state={{ studio: true }} />;
+  }
+
   return (
     <div className="searchlist">
-      {showpdf ? (
+      {(showpdf || isStudioHome) ? (
         <Showfiles
+          key={filename || "studio-home"}
+          fileId={filename}
+          studioOnly={isStudioHome}
           actualDlink={actualDlink}
           raw={raw}
           pdflink={pdflink}
@@ -453,7 +434,7 @@ const SearchList = () => {
           dataerror={dataerror}
           credits={credits}
           courseName={courseName}
-          extract={extract}
+          extract={isStudioHome ? "" : extract}
           selectedVal={selectedVal}
           // Lets Showfiles re-trigger the same fetch (PDF link + AI solution)
           // that originally populated this view, so a failed extraction can
@@ -603,7 +584,7 @@ const SearchList = () => {
                   <>
                     <div
                       className="filtered mn4"
-                      style={{ margin: "0 0 10px", width: "100%", cursor: "pointer" }}
+                      style={{ width: "100%", cursor: "pointer", height:"100px" }}
                       onClick={closeFolderContents}
                     >
                       <ArrowLeftOutlined style={{ marginRight: 8 }} />
@@ -611,12 +592,7 @@ const SearchList = () => {
                     </div>
 
                     {papersLoading ? (
-                      <div className="filtered mn4" style={{ margin: 0, width: "100%" }}>
-                        <div className="ready">
-                          <div className="big"><LoadingOutlined spin /></div>
-                          <div className="desc err4"><span className="nerror">Loading papers…</span></div>
-                        </div>
-                      </div>
+                      <ResultSkeletons count={6} label="Loading papers" />
                     ) : papersError ? (
                       <div className="filtered mn4" style={{ margin: 0, width: "100%" }}>
                         <div className="ready">
@@ -687,6 +663,9 @@ const SearchList = () => {
                       </div>
                     </div>
                   ))
+                ) : refreshing && find.trim() !== "" ? (
+                  /* ── searching: skeleton rows instead of a spinner ── */
+                  <ResultSkeletons count={6} label="Searching" />
                 ) : (
                   /* ── empty / error state ── */
                   <div
@@ -697,14 +676,14 @@ const SearchList = () => {
                   >
                     <div className="ready">
                       <div className="big">
-                        {refreshing ? <LoadingOutlined spin /> : <SearchOutlined style={{opacity:".1"}}/>}
+                        <SearchOutlined style={{opacity:".1"}}/>
                       </div>
                       <div/>
                       <div className="desc err4">
                         <div className="fnav2" style={{ padding:5 }}>
                         </div>
                         <span className="nerror">
-                          {refreshing ? "Searching…" : NetworkError}
+                          {NetworkError}
                         </span>
                       </div>
                     </div>

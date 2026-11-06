@@ -4,7 +4,7 @@ import { Stat } from './gameKit'
 
 // Pair each question (left) with its correct answer (right). First-try matches
 // score best; every wrong pairing costs points.
-export default function MatchPairs({ questions, sfx, onComplete }) {
+export default function MatchPairs({ questions, sfx, onComplete, onAnswer }) {
   const total = questions.length
   const right = useMemo(
     () => shuffle(questions.map((q, n) => ({ n, text: q.options[q.correct] }))),
@@ -27,6 +27,8 @@ export default function MatchPairs({ questions, sfx, onComplete }) {
   const evaluate = (l, r) => {
     const target = questions[l].options[questions[l].correct]
     if (right[r].text === target) {
+      // Only a first-try match counts as "knew it"; a match after a miss was already recorded as a miss.
+      if (!missedRef.current.has(l)) onAnswer?.(questions[l], true)
       const nextDone = doneL.size + 1
       setDoneL((s) => new Set(s).add(l))
       setDoneR((s) => new Set(s).add(r))
@@ -45,6 +47,8 @@ export default function MatchPairs({ questions, sfx, onComplete }) {
       setBad({ l, r })
       setMistakes((m) => m + 1)
       setScore((s) => Math.max(0, s - 20))
+      // A question is missed once per round, however many wrong pairings it takes.
+      if (!missedRef.current.has(l)) onAnswer?.(questions[l], false)
       missedRef.current.add(l)
       sfx('wrong')
       later(() => {
@@ -62,6 +66,7 @@ export default function MatchPairs({ questions, sfx, onComplete }) {
     const target = questions[selL].options[questions[selL].correct]
     const r = right.findIndex((a, k) => !doneR.has(k) && a.text === target)
     if (r < 0) return
+    if (!missedRef.current.has(selL)) onAnswer?.(questions[selL], false, 'revealed')
     missedRef.current.add(selL)
     const nextDone = doneL.size + 1
     setDoneL((d) => new Set(d).add(selL))

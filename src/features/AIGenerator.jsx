@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
-import { loadState, saveState, makeId } from '../lib/localStore'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { loadState, saveState, removeState, makeId } from '../lib/localStore'
 import { initialCardState } from '../lib/spacedRepetition'
 import { generateExercisesFromText, estimateRequests } from '../lib/aiGenerator'
 import { extractTextFromFile, releaseOcrWorker, classifyFile, SUPPORTED_ACCEPT } from '../lib/fileExtract'
 import { bumpGenerations } from '../lib/activity'
+import { mistakesAsExercises, recordAnswer, subscribeMistakes } from '../lib/mistakeBank'
+import { HText, OptionButton } from './highlight/Highlighter'
+import { hlKeys } from './highlight/highlightStore'
 import SaveToSolutions from './SaveToSolutions'
 import './styles/hub.css'
+import './styles/mistakes.css'
 
 const NOTES_KEY = 'notes'
 const SETS_KEY = 'mock-test-sets'
@@ -45,7 +49,26 @@ const MODE_META = {
   flashcards: { eyebrow: 'FLASHCARDS', title: 'Flashcard Maker', cta: 'Generate flashcards', instruction: 'Create flashcards only (a short front prompt and a concise back answer).', keep: (e) => e.kind === 'flashcard' },
 }
 
-export default function AIGenerator({ initialText = '', initialSourceLabel = '', onNavigate, mode = 'all', embedded = false }) {
+// A backend exercise (or a saved mistake) plus the runtime answer state the
+// review screen needs.
+function toItem(e, extra = {}) {
+  return {
+    ...e,
+    keep: true,
+    selectedOption: null,
+    textAnswer: '',
+    checked: false,
+    isCorrect: null,
+    graded: null,
+    showHint: false,
+    ...extra,
+  }
+}
+
+// `trackKey` is opt-in (the solutions studio passes it; the general Learning Hub
+// doesn't). When set, the quiz: remembers wrong answers, offers to practise them
+// first, and can be resumed after leaving the page.
+export default function AIGenerator({ initialText = '', initialSourceLabel = '', onNavigate, mode = 'all', embedded = false, trackKey = '', trackLabel = '' }) {
   const modeMeta = MODE_META[mode] || MODE_META.all
   // ── input screen state ──
   const [sourceTab, setSourceTab] = useState('paste')
@@ -66,6 +89,23 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
   const [partialErrors, setPartialErrors] = useState([])
   const [remainingCredits, setRemainingCredits] = useState(null)
 
+  // ── Mistake tracking + resume (only when trackKey is set) ──
+  const SESSION_KEY = trackKey ? `quiz-session:${mode}:${trackKey}` : null
+  const roundIdRef = useRef(makeId())
+  const [resumable, setResumable] = useState(() => {
+    if (!SESSION_KEY) return null
+    const saved = loadState(SESSION_KEY, null)
+    return saved && Array.isArray(saved.items) && saved.items.length ? saved : null
+  })
+  const [mistakesFirst, setMistakesFirst] = useState(() => (trackKey ? loadState(`quiz-mistakes-first:${trackKey}`, true) !== false : false))
+  const [mistakeTick, bumpMistakes] = useReducer((n) => n + 1, 0)
+  useEffect(() => (trackKey ? subscribeMistakes(bumpMistakes) : undefined), [trackKey])
+  const openMistakes = useMemo(
+    () => (trackKey && mode !== 'flashcards' ? mistakesAsExercises(trackKey) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trackKey, mode, mistakeTick]
+  )
+
   // ── review flow state ──
   const [items, setItems] = useState([]) // normalized exercises + runtime answer state
   const [index, setIndex] = useState(0)
@@ -74,6 +114,14 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
   const [testTitle, setTestTitle] = useState('')
   const [deckName, setDeckName] = useState('')
   const [savedInto, setSavedInto] = useState({ testId: null, deckId: null, questionCount: 0, cardCount: 0 })
+
+  // Keep the quiz in progress so leaving the page (or a refresh) doesn't lose it.
+  useEffect(() => {
+    if (!SESSION_KEY) return
+    if (status === 'reviewing' || status === 'summary') {
+      saveState(SESSION_KEY, { items, index, status, testTitle, deckName, roundId: roundIdRef.current, at: Date.now() })
+    }
+  }, [SESSION_KEY, status, items, index, testTitle, deckName])
 
   const requestEstimate = estimateRequests(text)
 
@@ -164,6 +212,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
     }
     setError(null)
     setPartialErrors([])
+    setResumable(null)
     setStatus('loading')
     setProgress({ done: 0, total: 1 })
 
@@ -184,24 +233,25 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
         return
       }
 
-      setItems(
-        exercises.map((e) => ({
-          ...e,
-          keep: true,
-          selectedOption: null,
-          textAnswer: '',
-          checked: false,
-          isCorrect: null,
-          graded: null,
-          showHint: false,
-        }))
-      )
+      const fresh = exercises.map((e) => toItem(e))
+      // Questions the student missed before go first (free to replay), and any
+      // freshly generated duplicate of one of them is dropped.
+      let list = fresh
+      if (trackKey && mistakesFirst && openMistakes.length) {
+        const stems = new Set(openMistakes.map((m) => normalize(m.q)))
+        list = [
+          ...openMistakes.map((m) => toItem(m, { fromMistake: true })),
+          ...fresh.filter((f) => f.kind === 'flashcard' || !stems.has(normalize(f.q))),
+        ]
+      }
+      roundIdRef.current = makeId()
+      setItems(list)
       setIndex(0)
       setRemainingCredits(rc ?? null)
       setPartialErrors(errs || [])
 
-      const mcqCount = exercises.filter((e) => e.kind === 'mcq' || e.kind === 'fillIn').length
-      const cardCount = exercises.filter((e) => e.kind === 'flashcard').length
+      const mcqCount = list.filter((e) => e.kind === 'mcq' || e.kind === 'fillIn').length
+      const cardCount = list.filter((e) => e.kind === 'flashcard').length
       setTestTitle(mcqCount ? `AI quiz — ${new Date().toLocaleDateString()}` : '')
       setDeckName(cardCount ? `AI flashcards — ${new Date().toLocaleDateString()}` : '')
 
@@ -215,6 +265,47 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
 
   const updateItem = (id, patch) => {
     setItems((prev) => prev.map((it) => (it._id === id ? { ...it, ...patch } : it)))
+  }
+
+  // Record one answer in the mistake bank (no-op unless tracking is on).
+  const track = (item, ok) => {
+    if (!trackKey || (item.kind !== 'mcq' && item.kind !== 'fillIn')) return
+    recordAnswer({ key: trackKey, label: trackLabel }, item, ok, roundIdRef.current)
+  }
+
+  // A quiz made purely of the student's saved mistakes — free, no credits.
+  const practiseMistakes = () => {
+    if (!openMistakes.length) return
+    roundIdRef.current = makeId()
+    setResumable(null)
+    setError(null)
+    setPartialErrors([])
+    setItems(openMistakes.map((m) => toItem(m, { fromMistake: true })))
+    setIndex(0)
+    setTestTitle(`${trackLabel || 'Course'} — mistakes ${new Date().toLocaleDateString()}`)
+    setDeckName('')
+    setStatus('reviewing')
+  }
+
+  const resumeSession = () => {
+    if (!resumable) return
+    roundIdRef.current = resumable.roundId || makeId()
+    setItems(resumable.items)
+    setIndex(Math.min(resumable.index || 0, resumable.items.length - 1))
+    setTestTitle(resumable.testTitle || '')
+    setDeckName(resumable.deckName || '')
+    setStatus(resumable.status === 'summary' ? 'summary' : 'reviewing')
+    setResumable(null)
+  }
+
+  const discardSession = () => {
+    if (SESSION_KEY) removeState(SESSION_KEY)
+    setResumable(null)
+  }
+
+  const changeMistakesFirst = (v) => {
+    setMistakesFirst(v)
+    if (trackKey) saveState(`quiz-mistakes-first:${trackKey}`, v)
   }
 
   const goNext = () => {
@@ -254,10 +345,13 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
     }
 
     setSavedInto({ testId, deckId, questionCount: selectedQuizItems.length, cardCount: selectedCards.length })
+    if (SESSION_KEY) removeState(SESSION_KEY)
     setStatus('saved')
   }
 
   const startOver = () => {
+    if (SESSION_KEY) removeState(SESSION_KEY)
+    setResumable(null)
     setStatus('idle')
     setItems([])
     setIndex(0)
@@ -338,6 +432,16 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
           )}
         </div>
 
+        {trackKey && quizItems.length > 0 && (
+          <div className="gm-bank" role="status" style={{ marginTop: 12 }}>
+            <p>
+              {correctCount === quizItems.length
+                ? '🎉 No new mistakes this round.'
+                : `🎯 ${quizItems.length - correctCount} missed question${quizItems.length - correctCount === 1 ? '' : 's'} saved — practise them first next time from the start screen.`}
+            </p>
+          </div>
+        )}
+
         <div style={{ fontSize: 12, color: 'var(--hub-text-muted)', margin: '4px 0 12px' }}>
           {keptCount} of {items.length} selected to save — go back to change your picks.
         </div>
@@ -404,7 +508,10 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
 
         <div className="hub-card">
           <div className="hub-row" style={{ alignItems: 'flex-start', marginBottom: 10 }}>
-            <span className="hub-badge-pill">{meta.icon} {meta.label}</span>
+            <span>
+              <span className="hub-badge-pill">{meta.icon} {meta.label}</span>
+              {item.fromMistake && <span className="hub-tag-missed">Missed before</span>}
+            </span>
             <label className="hub-switch" title="Save this one" onClick={(e) => e.stopPropagation()}>
               <input type="checkbox" checked={item.keep} onChange={() => updateItem(item._id, { keep: !item.keep })} />
               <span className="hub-switch-track" />
@@ -419,6 +526,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
               onSelect={(i) => {
                 if (item.checked) return
                 updateItem(item._id, { selectedOption: i, checked: true, isCorrect: i === item.correct })
+                track(item, i === item.correct)
               }}
             />
           ) : (
@@ -428,7 +536,9 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
               onToggleHint={() => updateItem(item._id, { showHint: !item.showHint })}
               onSubmit={() => {
                 if (item.checked || !item.textAnswer.trim()) return
-                updateItem(item._id, { checked: true, isCorrect: normalize(item.textAnswer) === normalize(item.correctAnswer) })
+                const ok = normalize(item.textAnswer) === normalize(item.correctAnswer)
+                updateItem(item._id, { checked: true, isCorrect: ok })
+                track(item, ok)
               }}
             />
           )}
@@ -456,8 +566,44 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
   // ===================================================================
   // INPUT SCREEN
   // ===================================================================
+  const resumeAnswered = resumable ? resumable.items.filter((it) => it.checked).length : 0
   return (
     <div className="hub-page">
+      {trackKey && resumable && (
+        <div className="hub-resume" role="region" aria-label="Unfinished quiz">
+          <div className="hub-resume__text">
+            <strong>{resumable.status === 'summary' ? 'Your last quiz' : 'Quiz in progress'}</strong>
+            <span>
+              {resumable.status === 'summary'
+                ? `${resumable.items.length} questions · results ready`
+                : `${resumeAnswered} of ${resumable.items.length} answered`}
+            </span>
+          </div>
+          <div className="hub-resume__btns">
+            <button type="button" className="hub-btn" onClick={resumeSession}>
+              {resumable.status === 'summary' ? 'View results' : 'Continue'}
+            </button>
+            <button type="button" className="hub-btn hub-btn-ghost" onClick={discardSession}>Discard</button>
+          </div>
+        </div>
+      )}
+
+      {trackKey && openMistakes.length > 0 && (
+        <div className="hub-resume" role="region" aria-label="Questions you missed">
+          <div className="hub-resume__text">
+            <strong>🎯 {openMistakes.length} question{openMistakes.length === 1 ? '' : 's'} you missed before</strong>
+            <span>Practise them now — free, no credits used.</span>
+          </div>
+          <div className="hub-resume__btns">
+            <button type="button" className="hub-btn" onClick={practiseMistakes}>Practise</button>
+          </div>
+          <label className="hub-checkline" style={{ flexBasis: '100%' }}>
+            <input type="checkbox" checked={mistakesFirst} onChange={(e) => changeMistakesFirst(e.target.checked)} />
+            Put them first when I generate a new quiz
+          </label>
+        </div>
+      )}
+
       {!embedded && (
         <>
           <p className="hub-eyebrow">{modeMeta.eyebrow}</p>
@@ -616,7 +762,7 @@ export default function AIGenerator({ initialText = '', initialSourceLabel = '',
 function McqCard({ item, onSelect }) {
   return (
     <>
-      <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>{item.q}</p>
+      <HText as="p" k={hlKeys.question(item)} text={item.q} style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }} />
       {item.options.map((opt, i) => {
         let cls = 'hub-answer-option'
         if (item.checked) {
@@ -626,15 +772,15 @@ function McqCard({ item, onSelect }) {
           cls += ' is-selected'
         }
         return (
-          <button key={i} className={cls} disabled={item.checked} onClick={() => onSelect(i)}>
-            {opt}
-          </button>
+          <OptionButton key={i} className={cls} disabled={item.checked} onActivate={() => onSelect(i)}>
+            <HText k={hlKeys.option(item, opt)} text={opt} />
+          </OptionButton>
         )
       })}
       {item.checked && item.explanation && (
         <div className={`hub-result-banner ${item.isCorrect ? 'is-correct' : 'is-incorrect'}`}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>{item.isCorrect ? '✅ Correct' : '❌ Not quite'}</div>
-          <div style={{ color: 'var(--hub-text-muted)' }}>{item.explanation}</div>
+          <HText as="div" k={hlKeys.explanation(item)} text={item.explanation} style={{ color: 'var(--hub-text-muted)' }} />
         </div>
       )}
     </>
@@ -644,7 +790,7 @@ function McqCard({ item, onSelect }) {
 function FillInCard({ item, onChangeAnswer, onToggleHint, onSubmit }) {
   return (
     <>
-      <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>{item.q}</p>
+      <HText as="p" k={hlKeys.question(item)} text={item.q} style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }} />
       <input
         className="hub-input"
         type="text"
@@ -668,8 +814,8 @@ function FillInCard({ item, onChangeAnswer, onToggleHint, onSubmit }) {
       {item.checked && (
         <div className={`hub-result-banner ${item.isCorrect ? 'is-correct' : 'is-incorrect'}`}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>{item.isCorrect ? '✅ Correct' : '❌ Not quite'}</div>
-          {!item.isCorrect && <div>Correct answer: {item.correctAnswer}</div>}
-          {item.explanation && <div style={{ color: 'var(--hub-text-muted)', marginTop: 4 }}>{item.explanation}</div>}
+          {!item.isCorrect && <div>Correct answer: <HText k={hlKeys.answer(item)} text={item.correctAnswer} /></div>}
+          {item.explanation && <HText as="div" k={hlKeys.explanation(item)} text={item.explanation} style={{ color: 'var(--hub-text-muted)', marginTop: 4 }} />}
         </div>
       )}
 

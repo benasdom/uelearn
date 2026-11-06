@@ -20,6 +20,9 @@ import {
   Clapperboard, Library, Timer, ArrowLeft, AlertTriangle, Gamepad2,
 } from 'lucide-react'
 
+import { courseSourceKey } from '../lib/mistakeBank'
+import { hashText } from '../lib/gameQuestions'
+
 const AIGenerator   = lazy(() => import('./AIGenerator'))
 const AITutor       = lazy(() => import('./AITutor'))
 const PodcastStudio = lazy(() => import('./PodcastStudio'))
@@ -141,6 +144,15 @@ export default function SolutionAIPanel({ activeTool, onSelectTool, onClose, sou
     }
   }, [sourceText, courseName])
 
+  // Mistakes belong to the COURSE (so regenerating a solution, or opening its
+  // saved copy, doesn't make them disappear). Conversations belong to the
+  // SOLUTION — a chat about the 2019 paper shouldn't greet you under 2020's.
+  const trackKey = useMemo(() => courseSourceKey(courseName, seeds.quizText), [courseName, seeds.quizText])
+  const convKey = useMemo(
+    () => `${courseSourceKey(courseName, '')}|${seeds.quizText ? hashText(seeds.quizText) : 'none'}`,
+    [courseName, seeds.quizText]
+  )
+
   const goTo = (target) => {
     // AIGenerator's "Open →" buttons speak in Hub route names.
     const map = { mocktest: 'tests', flashcards: 'decks' }
@@ -150,19 +162,19 @@ export default function SolutionAIPanel({ activeTool, onSelectTool, onClose, sou
   const renderTool = (key) => {
     switch (key) {
       case 'quiz':
-        return <AIGenerator mode="quiz" embedded initialText={seeds.quizText} initialSourceLabel={seeds.quizLabel} onNavigate={goTo} />
+        return <AIGenerator mode="quiz" embedded initialText={seeds.quizText} initialSourceLabel={seeds.quizLabel} onNavigate={goTo} trackKey={trackKey} trackLabel={courseName} />
       case 'flashcards':
         return <AIGenerator mode="flashcards" embedded initialText={seeds.quizText} initialSourceLabel={seeds.quizLabel} onNavigate={goTo} />
       case 'tutor':
-        return <AITutor initialText={seeds.tutorText} />
+        return <AITutor initialText={seeds.tutorText} persistKey={convKey} />
       case 'podcast':
         return <PodcastStudio initialTopic={seeds.podcastTopic} />
       case 'chat':
-        return <ChatInterface context={seeds.chatContext} saveTitle={`Chat: ${(courseName || 'solution').slice(0, 60)}`} />
+        return <ChatInterface context={seeds.chatContext} saveTitle={`Chat: ${(courseName || 'solution').slice(0, 60)}`} persistKey={convKey} />
       case 'media':
         return <MediaStudio compact initialPrompt={seeds.mediaPrompt} />
       case 'games':
-        return <McqGame sourceText={seeds.quizText} courseName={courseName} title="Study games" active={activeTool === 'games'} />
+        return <McqGame sourceText={seeds.quizText} courseName={courseName} title="Study games" active={activeTool === 'games'} trackKey={trackKey} />
       case 'decks':
         return <Flashcards />
       case 'tests':
