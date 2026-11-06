@@ -7,13 +7,15 @@ import {
   MoneyCollectOutlined, AppstoreOutlined, GoldFilled, DollarOutlined,
   SolutionOutlined, ScheduleOutlined, LogoutOutlined, TeamOutlined,MenuFoldOutlined,MenuUnfoldOutlined,
   TrophyOutlined, CloseCircleFilled, DisconnectOutlined,
-  SoundOutlined, AimOutlined, SearchOutlined, EyeOutlined, LoadingOutlined,
+  SoundOutlined, AimOutlined, SearchOutlined, EyeOutlined,
 } from '@ant-design/icons'
 import { Link, Navigate, useParams, useNavigate } from 'react-router-dom'
 import mainlogo from '/imgs/titled.png'
 import racoon from '/imgs/racoon_job.jpg'
 import Overview from './menu/Overview'
 import LoadComponent from './Loadcomponent'
+import { ResultSkeletons } from './Skeletons'
+import { clearSearchCache } from './lib/searchCache'
 import ModelComponent from './ModelComponent'
 import { domain, fetchWithAuth, logout, LocalApiPath } from './menu/authfetch'
 import { useAppContext } from './Appcontext'
@@ -268,6 +270,7 @@ const SearchList = () => {
 
   const logoutUser = () => {
     if (confirm("Confirm to Leave")) {
+      clearSearchCache();
       logout();
       location.reload();
     }
@@ -589,12 +592,7 @@ const SearchList = () => {
                     </div>
 
                     {papersLoading ? (
-                      <div className="filtered mn4" style={{ margin: 0, width: "100%" }}>
-                        <div className="ready">
-                          <div className="big"><LoadingOutlined spin /></div>
-                          <div className="desc err4"><span className="nerror">Loading papers…</span></div>
-                        </div>
-                      </div>
+                      <ResultSkeletons count={6} label="Loading papers" />
                     ) : papersError ? (
                       <div className="filtered mn4" style={{ margin: 0, width: "100%" }}>
                         <div className="ready">
@@ -665,6 +663,9 @@ const SearchList = () => {
                       </div>
                     </div>
                   ))
+                ) : refreshing && find.trim() !== "" ? (
+                  /* ── searching: skeleton rows instead of a spinner ── */
+                  <ResultSkeletons count={6} label="Searching" />
                 ) : (
                   /* ── empty / error state ── */
                   <div
@@ -675,14 +676,14 @@ const SearchList = () => {
                   >
                     <div className="ready">
                       <div className="big">
-                        {refreshing ? <LoadingOutlined spin /> : <SearchOutlined style={{opacity:".1"}}/>}
+                        <SearchOutlined style={{opacity:".1"}}/>
                       </div>
                       <div/>
                       <div className="desc err4">
                         <div className="fnav2" style={{ padding:5 }}>
                         </div>
                         <span className="nerror">
-                          {refreshing ? "Searching…" : NetworkError}
+                          {NetworkError}
                         </span>
                       </div>
                     </div>

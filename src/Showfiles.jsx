@@ -991,10 +991,12 @@ const Showfiles = ({
 
                 {/* AI tools — the Learning Hub's generators, working on this solution */}
                 {!isLoading && (!studioOnly || savedquery) && (
-                  <div className="sf-aistrip" role="toolbar" aria-label="AI study tools">
-                    <span className="sf-aistrip__label"><SparkIcon size={12} /> AI tools</span>
+                  <div className="sf-aistrip" role="toolbar" aria-label="AI study Studio">
+                    <span className="sf-aistrip__label"><SparkIcon size={12} /> AI Studio</span>
                     <div className="sf-aistrip__scroll">
-                      {AI_TOOLS.map((t, i) => (
+                      
+                      {AI_TOOLS.filter((a)=>!/flashcard/gim.test(a.label)).map((t, i) => ( 
+                        // flashcards is removed because the format from the backend is not compatible with flashcards yet
                         <React.Fragment key={t.key}>
                           {i > 0 && AI_TOOLS[i - 1].group !== t.group && <span className="sf-aistrip__sep" aria-hidden="true" />}
                           <button

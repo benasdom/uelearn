@@ -5,6 +5,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { getFromLocalStorage } from './menu/fromlocal';
 import { fetchWithAuth, domain, AuthError } from './menu/authfetch';
 import SuspendedNotice from './SuspendedNotice';
+import {
+  getCachedFolders, localMatch, fetchFolders, prefetchCourseSearches,
+} from './lib/searchCache';
 
 // Minimum characters typed before firing a folder search — avoids a
 // near-unfiltered (and near-useless) result set on the first keystroke.
@@ -163,20 +166,6 @@ const SEARCH_HINT = (
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-// The folders endpoint has returned several shapes over time. Accept all:
-//   [...]                                          (bare array)
-//   { folders: [...] }                             (Node scraper directly)
-//   { data: [...] } / { data: { folders: [...] } } (Django proxy)
-function extractFolders(res) {
-  const list =
-    (Array.isArray(res) && res) ||
-    res?.folders ||
-    res?.data?.folders ||
-    (Array.isArray(res?.data) && res.data) ||
-    [];
-  return Array.isArray(list) ? list : [];
-}
-
 function readStoredUser() {
   try {
     const raw = localStorage.getItem("userInfo");
@@ -247,6 +236,13 @@ export function AppProvider({ children }) {
     }
   }, [location.pathname, navigate]);
 
+  // ── warm the course-code search immediately (in parallel with the profile
+  //    call, not after it) whenever a signed-in user is on a non-public page ──
+  useEffect(() => {
+    if (PUBLIC_ROUTES.includes(location.pathname)) return;
+    if (readStoredUser()) prefetchCourseSearches();
+  }, [location.pathname]);
+
   // ── cross-tab credit sync (e.g. from the Payment page) ──
   useEffect(() => {
     const handleStorageChange = () => {
@@ -300,7 +296,12 @@ export function AppProvider({ children }) {
         // Non-auth errors (network down etc.) are silent — cached
         // localStorage data is already applied and browsing still works
       } finally {
-        if (!cancelled) setloader(false);
+        if (!cancelled) {
+          setloader(false);
+          // Signed in and idle: warm the course-code search in the background
+          // (PSYC, DCIT …) so the first real search is instant.
+          if (readStoredUser()) prefetchCourseSearches();
+        }
       }
     }
 
@@ -318,39 +319,39 @@ export function AppProvider({ children }) {
   // instead of hitting the network with a near-unfiltered query.
   useEffect(() => {
     const query = find.trim();
-    console.log("[search] effect run, find =", JSON.stringify(find));
 
     if (query.length < MIN_SEARCH_LENGTH) {
-      console.log("[search] query too short -> clearing payload");
       setpayload([]);
       setRefreshing(false);
       return;
     }
 
+    // Anything we can answer from memory shows INSTANTLY: an exact hit, or a
+    // longer search ("psyc 101") filtered out of a full prefix list ("psyc").
+    // It is still refreshed quietly afterwards unless it is a fresh exact hit.
+    const cached = getCachedFolders(query);
+    const local = cached ? null : localMatch(query);
+    const instant = cached ? cached.folders : local?.folders;
+    if (instant) {
+      setpayload(instant);
+      setNetworkError(SEARCH_HINT);
+      setRefreshing(false);
+      if (cached?.fresh) return;
+    }
+
     let cancelled = false;
-    setRefreshing(true);
+    if (!instant) setRefreshing(true);
 
     const timer = setTimeout(async () => {
       try {
-        console.log("[search] firing request for:", query);
-        const res = await fetchWithAuth(
-          `${domain}/api/v1/papers/folders?search=${encodeURIComponent(query)}&pageSize=30`,
-          { method: "GET" }
-        );
-        console.log("[search] raw res:", res);
-        console.log("[search] extracted count:", extractFolders(res).length);
-        if (cancelled) {
-          console.warn("[search] result DISCARDED: effect was cancelled (find changed or component re-ran)");
-          return;
-        }
-        // The Node server returns { total, count, offset, folders: [...] },
-        // not a bare array — normalize whatever shape arrives.
-        setpayload(extractFolders(res));
+        const folders = await fetchFolders(query);
+        if (cancelled) return;
+        setpayload(folders);
         // Clear any stale "check your connection" message from a prior failure.
         setNetworkError(SEARCH_HINT);
       } catch (err) {
-        console.error("[search] request failed:", err);
         if (cancelled) return;
+        if (instant) return; // keep showing the local results if a refresh fails
         setpayload([]);
         if (err instanceof AuthError) {
           navigate('/login');
@@ -364,19 +365,13 @@ export function AppProvider({ children }) {
       } finally {
         if (!cancelled) setRefreshing(false);
       }
-    }, SEARCH_DEBOUNCE_MS);
+    }, instant ? 400 : SEARCH_DEBOUNCE_MS);
 
     return () => {
-      console.log("[search] cleanup (cancelling) for:", query);
       cancelled = true;
       clearTimeout(timer);
     };
   }, [find, navigate]);
-
-  // DEBUG: log every time payload changes
-  useEffect(() => {
-    console.log("[search] payload now has", payload.length, "items");
-  }, [payload]);
 
   const value = {
     loader, setloader,

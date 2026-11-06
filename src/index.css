@@ -4154,3 +4154,33 @@ text-align: left;
 }
 
 
+
+/* ───────── Skeleton loaders (dashboard result lists) ───────── */
+.sk-list{ width:100%; display:flex; flex-direction:column; }
+.sk-row{ pointer-events:none; gap:14px; }
+.sk-info{ flex:1; min-width:0; display:flex; flex-direction:column; gap:9px; align-items:flex-start; }
+.sk{
+  display:block;
+  position:relative;
+  overflow:hidden;
+  background:rgba(175,177,207,.16);
+  border-radius:6px;
+}
+.sk::after{
+  content:"";
+  position:absolute; inset:0;
+  transform:translateX(-100%);
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent);
+  animation:sk-sheen 1.5s ease-in-out infinite;
+  animation-delay:calc(var(--sk-i, 0) * 90ms);
+}
+.sk-thumb{ width:30px; height:38px; flex-shrink:0; border-radius:4px; }
+.sk-line{ height:11px; max-width:100%; }
+.sk-line--title{ height:13px; }
+.sk-line--sub{ height:9px; opacity:.7; }
+.sk-pill{ width:72px; height:30px; border-radius:15px; flex-shrink:0; }
+.sk-sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+@keyframes sk-sheen{ to{ transform:translateX(100%); } }
+@media (prefers-reduced-motion: reduce){
+  .sk::after{ animation:none; opacity:0; }
+}
